@@ -5,11 +5,11 @@
   "description": "Know when websites change.",
   "scripts": {
     "dev": "next dev",
-    "prebuild": "jest --ci",
+    "prebuild": "NODE_ENV=test jest --ci",
     "build": "next build",
     "start": "next start",
     "test": "jest --watch",
-    "test:ci": "jest --ci"
+    "test:ci": "NODE_ENV=test jest --ci"
   },
   "dependencies": {
     "next": "^15.1.0",
