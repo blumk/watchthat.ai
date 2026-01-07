@@ -57,6 +57,25 @@ describe("WatchedSites", () => {
     expect(onRemove).toHaveBeenCalledWith("abc123");
   });
 
+  it("shows Preview button when lastContent is present", () => {
+    render(<WatchedSites sites={[makeSite()]} onUpdate={jest.fn()} onRemove={jest.fn()} />);
+    expect(screen.getByRole("button", { name: /show preview/i })).toBeInTheDocument();
+  });
+
+  it("does not show Preview button when lastContent is null", () => {
+    render(<WatchedSites sites={[makeSite({ lastContent: null })]} onUpdate={jest.fn()} onRemove={jest.fn()} />);
+    expect(screen.queryByRole("button", { name: /preview/i })).not.toBeInTheDocument();
+  });
+
+  it("toggles content preview on Preview/Hide click", () => {
+    render(<WatchedSites sites={[makeSite({ lastContent: "page text here" })]} onUpdate={jest.fn()} onRemove={jest.fn()} />);
+    expect(screen.queryByText("page text here")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /show preview/i }));
+    expect(screen.getByText("page text here")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /hide preview/i }));
+    expect(screen.queryByText("page text here")).not.toBeInTheDocument();
+  });
+
   it("calls /api/scrape and calls onUpdate when Fetch is clicked", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
