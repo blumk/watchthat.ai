@@ -16,21 +16,31 @@ function makeRequest(body: unknown): Request {
   });
 }
 
+const MOCK_RESULT = {
+  markdown: "# Hello\n\nSome page content.",
+  html: "<h1>Hello</h1>",
+  rawHtml: "<!DOCTYPE html><h1>Hello</h1>",
+  screenshot: "https://cdn.example.com/shot.png",
+};
+
 beforeEach(() => {
   MockFirecrawlApp.mockImplementation(
     () =>
       ({
-        scrape: jest.fn().mockResolvedValue({ markdown: "# Hello\n\nSome page content." }),
+        scrape: jest.fn().mockResolvedValue(MOCK_RESULT),
       }) as unknown as InstanceType<typeof FirecrawlApp>
   );
 });
 
 describe("POST /api/scrape", () => {
-  it("returns markdown for a valid URL", async () => {
+  it("returns all formats for a valid URL", async () => {
     const res = await POST(makeRequest({ url: "https://example.com" }));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.markdown).toBe("# Hello\n\nSome page content.");
+    expect(body.markdown).toBe(MOCK_RESULT.markdown);
+    expect(body.html).toBe(MOCK_RESULT.html);
+    expect(body.rawHtml).toBe(MOCK_RESULT.rawHtml);
+    expect(body.screenshot).toBe(MOCK_RESULT.screenshot);
   });
 
   it("returns 400 when url is missing", async () => {

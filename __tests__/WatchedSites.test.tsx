@@ -13,6 +13,9 @@ const makeSite = (overrides: Partial<WatchedSite> = {}): WatchedSite => ({
   lastChecked: null,
   lastHash: "deadbeef",
   lastContent: "some content",
+  lastHtml: null,
+  lastRawHtml: null,
+  lastScreenshot: null,
   changed: false,
   error: null,
   ...overrides,
@@ -62,8 +65,14 @@ describe("WatchedSites", () => {
     expect(screen.getByRole("button", { name: /show preview/i })).toBeInTheDocument();
   });
 
-  it("does not show Preview button when lastContent is null", () => {
-    render(<WatchedSites sites={[makeSite({ lastContent: null })]} onUpdate={jest.fn()} onRemove={jest.fn()} />);
+  it("does not show Preview button when no content is available", () => {
+    render(
+      <WatchedSites
+        sites={[makeSite({ lastContent: null, lastHtml: null, lastScreenshot: null })]}
+        onUpdate={jest.fn()}
+        onRemove={jest.fn()}
+      />
+    );
     expect(screen.queryByRole("button", { name: /preview/i })).not.toBeInTheDocument();
   });
 

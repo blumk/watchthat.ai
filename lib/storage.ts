@@ -6,7 +6,10 @@ export interface WatchedSite {
   label: string;
   lastChecked: number | null;
   lastHash: string | null;
-  lastContent: string | null;
+  lastContent: string | null;  // markdown
+  lastHtml: string | null;
+  lastRawHtml: string | null;
+  lastScreenshot: string | null; // URL or public path
   changed: boolean;
   error: string | null;
 }
@@ -36,6 +39,9 @@ export function addSite(rawUrl: string): WatchedSite {
     lastChecked: null,
     lastHash: null,
     lastContent: null,
+    lastHtml: null,
+    lastRawHtml: null,
+    lastScreenshot: null,
     changed: false,
     error: null,
   };
