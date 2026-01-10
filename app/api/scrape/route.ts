@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       apiKey: process.env.FIRECRAWL_API_KEY ?? "",
     });
     const result = await firecrawl.scrape(url, {
-      formats: ["markdown", "html", "rawHtml", "screenshot"],
+      formats: ["markdown", "html", "rawHtml", "screenshot@fullPage"],
     });
     console.log("[scrape]", url, result.markdown?.slice(0, 200));
     return NextResponse.json({
