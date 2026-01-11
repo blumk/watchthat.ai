@@ -12,6 +12,7 @@
     "test:ci": "NODE_ENV=test jest --ci"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.81.0",
     "@mendable/firecrawl-js": "^4.18.1",
     "next": "^15.1.0",
     "react": "^18.3.1",

@@ -25,7 +25,8 @@ export async function POST(request: Request) {
       apiKey: process.env.FIRECRAWL_API_KEY ?? "",
     });
     const result = await firecrawl.scrape(url, {
-      formats: ["markdown", "html", "rawHtml", "screenshot@fullPage"],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formats: ["markdown", "html", "rawHtml", "screenshot@fullPage"] as any,
     });
     console.log("[scrape]", url, result.markdown?.slice(0, 200));
     return NextResponse.json({

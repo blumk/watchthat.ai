@@ -34,6 +34,8 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<Record<string, PreviewTab>>({});
   const [rawHtmlCache, setRawHtmlCache] = useState<Record<string, string>>({});
+  const [editingTarget, setEditingTarget] = useState<Record<string, string>>({});
+  const [showTargetInput, setShowTargetInput] = useState<Set<string>>(new Set());
 
   if (sites.length === 0) return null;
 
@@ -41,30 +43,76 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
     if (sniffing.has(site.id)) return;
     setSniffing((prev) => new Set(prev).add(site.id));
     try {
-      const res = await fetch("/api/scrape", {
+      // 1. Scrape
+      const scrapeRes = await fetch("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: site.url }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as {
+      if (!scrapeRes.ok) throw new Error(`HTTP ${scrapeRes.status}`);
+      const data = (await scrapeRes.json()) as {
         markdown: string;
         html: string;
         rawHtml: string;
         screenshot: string | null;
       };
-      const newHash = hashString(data.markdown);
-      const changed = site.lastHash !== null && newHash !== site.lastHash;
+
       const patch: Partial<WatchedSite> = {
-        lastHash: newHash,
         lastContent: data.markdown,
         lastHtml: data.html,
         lastRawHtml: data.rawHtml,
         lastScreenshot: data.screenshot,
         lastChecked: Date.now(),
-        changed,
         error: null,
       };
+
+      if (site.watchTarget) {
+        // 2. Semantic extraction
+        const extractRes = await fetch("/api/extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ markdown: data.markdown, watchTarget: site.watchTarget }),
+        });
+        const { value } = extractRes.ok
+          ? ((await extractRes.json()) as { value: string })
+          : { value: "" };
+
+        const newExtractedHash = hashString(value);
+        const changed =
+          site.lastExtractedHash !== null &&
+          newExtractedHash !== site.lastExtractedHash;
+
+        patch.lastExtractedValue = value;
+        patch.lastExtractedHash = newExtractedHash;
+        patch.changed = changed;
+
+        if (changed && site.lastExtractedValue) {
+          // 3. Describe the change
+          const descRes = await fetch("/api/describe-change", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              oldValue: site.lastExtractedValue,
+              newValue: value,
+              watchTarget: site.watchTarget,
+              url: site.url,
+            }),
+          });
+          const { description } = descRes.ok
+            ? ((await descRes.json()) as { description: string })
+            : { description: "" };
+          patch.changeDescription = description;
+        } else if (!changed) {
+          patch.changeDescription = null;
+        }
+      } else {
+        // Fallback: hash full markdown
+        const newHash = hashString(data.markdown);
+        patch.lastHash = newHash;
+        patch.changed = site.lastHash !== null && newHash !== site.lastHash;
+        patch.changeDescription = null;
+      }
+
       updateSite(site.id, patch);
       onUpdate(site.id, patch);
     } catch (err) {
@@ -99,10 +147,10 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
 
   async function loadRawHtml(site: WatchedSite) {
     if (rawHtmlCache[site.id]) return;
-    // For sites with a public rawHtml asset (example sites), fetch it
-    const path = site.id === "example-hellolingo"
-      ? "/examples/hellolingo-rawhtml.html"
-      : null;
+    const path =
+      site.id === "example-hellolingo"
+        ? "/examples/hellolingo-rawhtml.html"
+        : null;
     if (path) {
       const text = await fetch(path).then((r) => r.text()).catch(() => "");
       setRawHtmlCache((prev) => ({ ...prev, [site.id]: text }));
@@ -116,6 +164,23 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
     if (tab === "rawHtml") loadRawHtml(site);
   }
 
+  function saveWatchTarget(site: WatchedSite) {
+    const target = (editingTarget[site.id] ?? "").trim() || null;
+    const patch: Partial<WatchedSite> = {
+      watchTarget: target,
+      lastExtractedValue: null,
+      lastExtractedHash: null,
+      changeDescription: null,
+    };
+    updateSite(site.id, patch);
+    onUpdate(site.id, patch);
+    setShowTargetInput((prev) => {
+      const next = new Set(prev);
+      next.delete(site.id);
+      return next;
+    });
+  }
+
   return (
     <section className="max-w-[700px] mx-auto px-6 pb-16">
       <div className="flex flex-col gap-3">
@@ -123,8 +188,8 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
           const status = deriveStatus(site, sniffing.has(site.id));
           const isExpanded = expanded.has(site.id);
           const tab = activeTab[site.id] ?? "markdown";
-          const hasContent =
-            site.lastContent || site.lastHtml || site.lastScreenshot;
+          const hasContent = site.lastContent || site.lastHtml || site.lastScreenshot;
+          const isEditingTarget = showTargetInput.has(site.id);
           const statusColor =
             status === "quiet"
               ? "var(--green)"
@@ -139,7 +204,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
               key={site.id}
               className="bg-[var(--bg2)] border border-[var(--bdr)] rounded-2xl overflow-hidden"
             >
-              {/* Row */}
+              {/* Main row */}
               <div className="flex items-center gap-3 px-4 py-3">
                 {/* Thumbnail */}
                 {site.lastScreenshot && (
@@ -159,31 +224,69 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                         setActiveTab((prev) => ({ ...prev, [site.id]: "screenshot" }));
                       }
                     }}
-                    className="shrink-0 rounded-lg overflow-hidden border border-[var(--bdr)] hover:border-[var(--bdr-f)] transition-colors"
+                    className="relative shrink-0 w-[60px] h-[38px] rounded-lg overflow-hidden border border-[var(--bdr)] hover:border-[var(--bdr-f)] transition-colors"
                   >
                     <Image
                       src={site.lastScreenshot}
                       alt={`Screenshot of ${site.label}`}
-                      width={48}
-                      height={27}
-                      className="block object-cover"
+                      fill
+                      className="object-cover object-top"
                       unoptimized
                     />
                   </button>
                 )}
 
-                {/* Label */}
-                <span className="flex-1 text-sm font-mono text-[var(--t1)] truncate">
-                  {site.label}
-                </span>
+                {/* Label + extracted value */}
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-mono text-[var(--t1)] truncate block">
+                    {site.label}
+                  </span>
+                  {site.watchTarget && site.lastExtractedValue && (
+                    <span className="text-xs font-mono text-[var(--t3)] truncate block">
+                      {site.watchTarget}: <span className="text-[var(--t2)]">{site.lastExtractedValue}</span>
+                    </span>
+                  )}
+                </div>
 
-                {/* Status badge */}
-                <span
-                  className="text-xs font-semibold font-mono shrink-0"
-                  style={{ color: statusColor }}
+                {/* Status badge or change description */}
+                <div className="shrink-0 text-right">
+                  <span
+                    className="text-xs font-semibold font-mono block"
+                    style={{ color: statusColor }}
+                  >
+                    {STATUS_LABEL[status]}
+                  </span>
+                  {status === "changed" && site.changeDescription && (
+                    <span className="text-xs text-[var(--t3)] block max-w-[180px] text-right leading-tight mt-0.5">
+                      {site.changeDescription}
+                    </span>
+                  )}
+                </div>
+
+                {/* Watch target edit button */}
+                <button
+                  aria-label={isEditingTarget ? "Cancel watch target" : "Edit watch target"}
+                  onClick={() =>
+                    setShowTargetInput((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(site.id)) {
+                        next.delete(site.id);
+                      } else {
+                        next.add(site.id);
+                        setEditingTarget((e) => ({ ...e, [site.id]: site.watchTarget ?? "" }));
+                      }
+                      return next;
+                    })
+                  }
+                  className={`shrink-0 text-sm transition-colors cursor-pointer bg-transparent border-none leading-none ${
+                    isEditingTarget || site.watchTarget
+                      ? "text-[var(--blue)]"
+                      : "text-[var(--t3)] hover:text-[var(--t2)]"
+                  }`}
+                  title={site.watchTarget ? `Watching: ${site.watchTarget}` : "Set watch target"}
                 >
-                  {STATUS_LABEL[status]}
-                </span>
+                  ✦
+                </button>
 
                 {/* Preview toggle */}
                 {hasContent && (
@@ -215,6 +318,39 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                   ×
                 </button>
               </div>
+
+              {/* Watch target input */}
+              {isEditingTarget && (
+                <div className="border-t border-[var(--bdr)] px-4 py-3 flex gap-2 items-center">
+                  <span className="text-xs text-[var(--t3)] font-mono shrink-0">Watch for:</span>
+                  <input
+                    type="text"
+                    placeholder='e.g. "the Pro plan price" or "the CEO name"'
+                    value={editingTarget[site.id] ?? ""}
+                    onChange={(e) =>
+                      setEditingTarget((prev) => ({ ...prev, [site.id]: e.target.value }))
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveWatchTarget(site);
+                      if (e.key === "Escape") {
+                        setShowTargetInput((prev) => {
+                          const next = new Set(prev);
+                          next.delete(site.id);
+                          return next;
+                        });
+                      }
+                    }}
+                    className="flex-1 bg-[var(--bg3)] border border-[var(--bdr)] rounded-lg px-3 py-1.5 text-xs font-mono text-[var(--t1)] placeholder-[var(--t3)] outline-none focus:border-[var(--blue)]"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => saveWatchTarget(site)}
+                    className="shrink-0 px-3 py-1.5 rounded-lg bg-[var(--blue)] text-white text-xs font-semibold cursor-pointer border-none hover:brightness-110 transition-all"
+                  >
+                    Save
+                  </button>
+                </div>
+              )}
 
               {/* Preview panel */}
               {isExpanded && (
@@ -248,14 +384,25 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                   {/* Panel content */}
                   <div className="px-4 py-3">
                     {tab === "screenshot" && site.lastScreenshot && (
-                      <Image
-                        src={site.lastScreenshot}
-                        alt={`Screenshot of ${site.label}`}
-                        width={660}
-                        height={371}
-                        className="rounded-lg w-full h-auto border border-[var(--bdr)]"
-                        unoptimized
-                      />
+                      <div>
+                        <div className="relative w-full h-56 rounded-lg overflow-hidden border border-[var(--bdr)] cursor-zoom-in">
+                          <Image
+                            src={site.lastScreenshot}
+                            alt={`Screenshot of ${site.label}`}
+                            fill
+                            className="object-cover object-top"
+                            unoptimized
+                          />
+                        </div>
+                        <a
+                          href={site.lastScreenshot}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block mt-2 text-xs font-mono text-[var(--blue)] hover:underline"
+                        >
+                          View full screenshot ↗
+                        </a>
+                      </div>
                     )}
                     {tab === "markdown" && site.lastContent && (
                       <pre className="text-xs font-mono text-[var(--t2)] whitespace-pre-wrap break-words max-h-64 overflow-y-auto leading-relaxed">

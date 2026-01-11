@@ -10,6 +10,10 @@ export interface WatchedSite {
   lastHtml: string | null;
   lastRawHtml: string | null;
   lastScreenshot: string | null; // URL or public path
+  watchTarget: string | null;       // e.g. "the Pro plan monthly price"
+  lastExtractedValue: string | null; // e.g. "$99/month"
+  lastExtractedHash: string | null;
+  changeDescription: string | null; // Claude-generated sentence describing the change
   changed: boolean;
   error: string | null;
 }
@@ -42,6 +46,10 @@ export function addSite(rawUrl: string): WatchedSite {
     lastHtml: null,
     lastRawHtml: null,
     lastScreenshot: null,
+    watchTarget: null,
+    lastExtractedValue: null,
+    lastExtractedHash: null,
+    changeDescription: null,
     changed: false,
     error: null,
   };
