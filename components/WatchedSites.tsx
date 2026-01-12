@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { hashString } from "@/lib/hash";
 import { updateSite, removeSite } from "@/lib/storage";
@@ -36,6 +36,23 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   const [rawHtmlCache, setRawHtmlCache] = useState<Record<string, string>>({});
   const [editingTarget, setEditingTarget] = useState<Record<string, string>>({});
   const [showTargetInput, setShowTargetInput] = useState<Set<string>>(new Set());
+  const autoFetched = useRef<Set<string>>(new Set());
+
+  // Auto-fetch any site that has never been checked
+  useEffect(() => {
+    sites.forEach((site) => {
+      if (
+        site.lastHash === null &&
+        site.lastExtractedHash === null &&
+        !site.error &&
+        !autoFetched.current.has(site.id)
+      ) {
+        autoFetched.current.add(site.id);
+        fetchSite(site);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sites]);
 
   if (sites.length === 0) return null;
 
