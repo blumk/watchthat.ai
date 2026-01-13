@@ -35,7 +35,26 @@ beforeEach(() => {
 });
 
 describe("POST /api/describe-change", () => {
-  it("returns a description for valid input", async () => {
+  it("returns a description and classification for valid input", async () => {
+    MockAnthropic.mockImplementation(
+      () =>
+        ({
+          messages: {
+            create: jest.fn().mockResolvedValue({
+              content: [
+                {
+                  type: "text",
+                  // Claude sometimes wraps JSON in code fences — must be stripped
+                  text: "```json\n" + JSON.stringify({
+                    description: "The Pro plan price increased from $99/month to $149/month.",
+                    classification: "major",
+                  }) + "\n```",
+                },
+              ],
+            }),
+          },
+        }) as unknown as InstanceType<typeof Anthropic>
+    );
     const res = await POST(
       makeRequest({
         oldValue: "$99/month",
@@ -48,6 +67,7 @@ describe("POST /api/describe-change", () => {
     const body = await res.json();
     expect(typeof body.description).toBe("string");
     expect(body.description.length).toBeGreaterThan(0);
+    expect(body.classification).toBe("major");
   });
 
   it("returns 400 when any required field is missing", async () => {

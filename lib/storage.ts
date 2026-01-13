@@ -1,5 +1,15 @@
 const STORAGE_KEY = "watchdog-sites-v1";
 
+export interface ChangeEntry {
+  id: string;
+  timestamp: number;
+  description: string;
+  classification: "major" | "minor" | "quiet";
+  oldValue?: string;
+  newValue?: string;
+  screenshot?: string | null;
+}
+
 export interface WatchedSite {
   id: string;
   url: string;
@@ -16,6 +26,7 @@ export interface WatchedSite {
   changeDescription: string | null; // Claude-generated sentence describing the change
   changed: boolean;
   error: string | null;
+  history: ChangeEntry[];
 }
 
 export function getSites(): WatchedSite[] {
@@ -52,6 +63,7 @@ export function addSite(rawUrl: string): WatchedSite {
     changeDescription: null,
     changed: false,
     error: null,
+    history: [],
   };
   saveSites([...getSites(), site]);
   return site;

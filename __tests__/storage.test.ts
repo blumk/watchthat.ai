@@ -30,6 +30,7 @@ describe("getSites", () => {
         changeDescription: null,
         changed: false,
         error: null,
+        history: [],
       },
     ];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sites));
@@ -56,6 +57,7 @@ describe("saveSites", () => {
         changeDescription: null,
         changed: false,
         error: null,
+        history: [],
       },
     ];
     saveSites(sites);
@@ -87,6 +89,7 @@ describe("addSite", () => {
     expect(site.lastHash).toBeNull();
     expect(site.error).toBeNull();
     expect(site.changed).toBe(false);
+    expect(site.history).toEqual([]);
   });
 
   it("generates a unique id", () => {
