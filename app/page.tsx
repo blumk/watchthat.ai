@@ -12,16 +12,21 @@ import { EXAMPLE_SITE } from "@/lib/example-site";
 import type { WatchedSite } from "@/lib/storage";
 
 export default function Home() {
-  const [sites, setSites] = useState<WatchedSite[]>([EXAMPLE_SITE]);
+  const [sites, setSites] = useState<WatchedSite[]>([]);
 
   useEffect(() => {
-    const stored = getSites();
-    setSites([EXAMPLE_SITE, ...stored]);
+    setSites(getSites());
   }, []);
 
   function handleAdd(url: string) {
     const site = addSite(url);
     setSites((prev) => [...prev, site]);
+  }
+
+  function handleDemo() {
+    setSites((prev) =>
+      prev.some((s) => s.id === EXAMPLE_SITE.id) ? prev : [EXAMPLE_SITE, ...prev]
+    );
   }
 
   function handleUpdate(id: string, patch: Partial<WatchedSite>) {
@@ -31,14 +36,22 @@ export default function Home() {
   }
 
   function handleRemove(id: string) {
-    if (id === EXAMPLE_SITE.id) return;
     setSites((prev) => prev.filter((s) => s.id !== id));
   }
+
+  const hasSites = sites.length > 0;
 
   return (
     <div className="min-h-screen bg-[var(--bg)] overflow-x-hidden">
       <Nav />
-      <Hero onAdd={handleAdd} />
+      <Hero onAdd={handleAdd} onDemo={handleDemo} hasSites={hasSites} />
+      {hasSites && (
+        <div className="max-w-[700px] mx-auto px-6 pt-2 pb-3">
+          <h2 className="text-xs font-mono font-semibold text-[var(--t3)] tracking-widest uppercase">
+            My watch list
+          </h2>
+        </div>
+      )}
       <WatchedSites sites={sites} onUpdate={handleUpdate} onRemove={handleRemove} />
       <FeatureCards />
       <div className="max-w-[900px] mx-auto px-6">

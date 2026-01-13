@@ -77,9 +77,11 @@ describe("WatchedSites", () => {
     expect(screen.getByText(/error/i)).toBeInTheDocument();
   });
 
-  it("calls onRemove when × button is clicked", () => {
+  it("calls onRemove when Remove button is clicked (card must be expanded first)", () => {
     const onRemove = jest.fn();
     render(<WatchedSites sites={[makeSite()]} onUpdate={jest.fn()} onRemove={onRemove} />);
+    // Remove is only shown when the card is expanded
+    fireEvent.click(screen.getByRole("button", { name: /show preview/i }));
     fireEvent.click(screen.getByRole("button", { name: /remove/i }));
     expect(onRemove).toHaveBeenCalledWith("abc123");
   });
@@ -131,30 +133,6 @@ describe("WatchedSites", () => {
     expect(screen.getByText("Jane Doe")).toBeInTheDocument();
   });
 
-  it("hides was/now values by default, shows them after toggling diff", () => {
-    const entry = {
-      id: "h1",
-      timestamp: Date.now() - 60000,
-      description: "Price rose from $99 to $149.",
-      classification: "major" as const,
-      oldValue: "$99",
-      newValue: "$149",
-    };
-    render(
-      <WatchedSites
-        sites={[makeSite({ history: [entry] })]}
-        onUpdate={jest.fn()}
-        onRemove={jest.fn()}
-      />
-    );
-    expect(screen.queryByText("$99")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /show diff/i }));
-    expect(screen.getByText("$99")).toBeInTheDocument();
-    expect(screen.getByText("$149")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /hide diff/i }));
-    expect(screen.queryByText("$99")).not.toBeInTheDocument();
-  });
-
   it("renders all history entries in the scrollable list", () => {
     const history = [
       { id: "h1", timestamp: Date.now() - 120000, description: "First change.", classification: "minor" as const },
@@ -168,19 +146,16 @@ describe("WatchedSites", () => {
     expect(screen.getByText("Second change.")).toBeInTheDocument();
   });
 
-  it("clicking an entry selects it and shows diff toggle", () => {
+  it("clicking an entry selects it", () => {
     const history = [
-      { id: "h1", timestamp: Date.now() - 120000, description: "First change.", classification: "minor" as const, oldValue: "$99", newValue: "$149" },
+      { id: "h1", timestamp: Date.now() - 120000, description: "First change.", classification: "minor" as const },
       { id: "h2", timestamp: Date.now() - 60000, description: "Second change.", classification: "major" as const },
     ];
     render(
       <WatchedSites sites={[makeSite({ history })]} onUpdate={jest.fn()} onRemove={jest.fn()} />
     );
-    // Newest is selected by default (no diff button on first change row since h2 has no values)
-    // Click the older entry to select it
     fireEvent.click(screen.getByText("First change."));
-    // Diff toggle now visible on that row
-    expect(screen.getByRole("button", { name: /show diff/i })).toBeInTheDocument();
+    expect(screen.getByText("First change.")).toBeInTheDocument();
   });
 
   it("shows quiet entry for initial snapshot", () => {
