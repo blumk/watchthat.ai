@@ -15,11 +15,11 @@ export default function Home() {
   const [sites, setSites] = useState<WatchedSite[]>([]);
 
   useEffect(() => {
-    setSites(getSites());
+    getSites().then(setSites);
   }, []);
 
-  function handleAdd(url: string) {
-    const site = addSite(url);
+  async function handleAdd(url: string) {
+    const site = await addSite(url);
     setSites((prev) => [...prev, site]);
   }
 
@@ -35,7 +35,8 @@ export default function Home() {
     );
   }
 
-  function handleRemove(id: string) {
+  async function handleRemove(id: string) {
+    await removeSite(id);
     setSites((prev) => prev.filter((s) => s.id !== id));
   }
 

@@ -86,6 +86,19 @@ describe("WatchedSites", () => {
     expect(onRemove).toHaveBeenCalledWith("abc123");
   });
 
+  it("shows Remove button inline for error sites with no content", () => {
+    const onRemove = jest.fn();
+    render(
+      <WatchedSites
+        sites={[makeSite({ error: "fetch failed", lastContent: null, lastHtml: null, lastScreenshot: null, lastHash: null })]}
+        onUpdate={jest.fn()}
+        onRemove={onRemove}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: /remove/i }));
+    expect(onRemove).toHaveBeenCalledWith("abc123");
+  });
+
   it("shows Preview button when lastContent is present", () => {
     render(<WatchedSites sites={[makeSite()]} onUpdate={jest.fn()} onRemove={jest.fn()} />);
     expect(screen.getByRole("button", { name: /show preview/i })).toBeInTheDocument();

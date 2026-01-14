@@ -78,7 +78,7 @@ export default function Hero({ onAdd, onDemo, hasSites }: Props) {
           />
 
           <button
-            className="shrink-0 px-7 py-3.5 rounded-xl border-none bg-[var(--blue)] text-white text-[15px] font-bold cursor-pointer transition-all duration-200 hover:brightness-110 hover:-translate-y-px whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
+            className="shrink-0 px-7 py-3.5 rounded-xl border-none bg-[var(--blue)] text-white text-[15px] font-bold cursor-pointer transition-all duration-200 hover:brightness-110 hover:-translate-y-px whitespace-nowrap"
             onClick={() => {
               if (value.trim()) {
                 onAdd?.(value.trim());
@@ -86,7 +86,6 @@ export default function Hero({ onAdd, onDemo, hasSites }: Props) {
               }
             }}
             type="button"
-            disabled={!value.trim()}
           >
             Watch
           </button>

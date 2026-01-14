@@ -94,13 +94,24 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: site.url }),
       });
-      const scrapeBody = await scrapeRes.json();
-      if (!scrapeRes.ok) {
-        throw new Error(
-          (scrapeBody as { error?: string }).error ?? `HTTP ${scrapeRes.status}`
-        );
+      const scrapeText = await scrapeRes.text();
+      let scrapeBody: Record<string, unknown>;
+      try {
+        scrapeBody = JSON.parse(scrapeText);
+      } catch {
+        // Vercel infrastructure error — body is HTML, not JSON
+        if (scrapeRes.status === 504 || scrapeText.includes("FUNCTION_INVOCATION_TIMEOUT")) {
+          throw new Error("timed out — page took too long to scrape (Vercel 10s limit on free tier)");
+        }
+        if (scrapeRes.status === 502 || scrapeText.includes("FUNCTION_INVOCATION_FAILED")) {
+          throw new Error("function crashed (Vercel)");
+        }
+        throw new Error(`HTTP ${scrapeRes.status}`);
       }
-      const data = scrapeBody as {
+      if (!scrapeRes.ok) {
+        throw new Error((scrapeBody.error as string | undefined) ?? `HTTP ${scrapeRes.status}`);
+      }
+      const data = scrapeBody as unknown as {
         markdown: string;
         html: string;
         rawHtml: string;
@@ -210,12 +221,12 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
         }
       }
 
-      updateSite(site.id, patch);
+      void updateSite(site.id, patch);
       onUpdate(site.id, patch);
     } catch (err) {
       const error = err instanceof Error ? err.message : "fetch failed";
       const patch: Partial<WatchedSite> = { error, lastChecked: Date.now() };
-      updateSite(site.id, patch);
+      void updateSite(site.id, patch);
       onUpdate(site.id, patch);
     } finally {
       setSniffing((prev) => {
@@ -227,7 +238,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   }
 
   function handleRemove(id: string) {
-    removeSite(id);
+    void removeSite(id);
     onRemove(id);
   }
 
@@ -268,7 +279,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
       lastExtractedHash: null,
       changeDescription: null,
     };
-    updateSite(site.id, patch);
+    void updateSite(site.id, patch);
     onUpdate(site.id, patch);
     setShowTargetInput((prev) => {
       const next = new Set(prev);
@@ -413,6 +424,17 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                   >
                     ↻
                   </button>
+
+                  {/* Remove — shown inline when card can't expand (no content) */}
+                  {!hasContent && (
+                    <button
+                      aria-label="Remove"
+                      onClick={() => handleRemove(site.id)}
+                      className="shrink-0 text-[var(--t3)] hover:text-[var(--red)] transition-colors text-lg leading-none cursor-pointer bg-transparent border-none"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               </div>
 
