@@ -225,7 +225,11 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
       onUpdate(site.id, patch);
     } catch (err) {
       const error = err instanceof Error ? err.message : "fetch failed";
-      const patch: Partial<WatchedSite> = { error, lastChecked: Date.now() };
+      const patch: Partial<WatchedSite> = {
+        error,
+        lastChecked: Date.now(),
+        history: [...(site.history ?? []), makeEntry(error, "error")],
+      };
       void updateSite(site.id, patch);
       onUpdate(site.id, patch);
     } finally {
@@ -450,6 +454,8 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                           ? "var(--red)"
                           : entry.classification === "quiet"
                           ? "var(--green)"
+                          : entry.classification === "error"
+                          ? "var(--red)"
                           : "var(--t3)";
                       return (
                         <div

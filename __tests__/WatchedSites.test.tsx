@@ -230,12 +230,25 @@ describe("WatchedSites", () => {
   it("calls /api/scrape and calls onUpdate when Fetch is clicked", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ markdown: "new content" }),
+      text: async () => JSON.stringify({ markdown: "new content" }),
     });
     const onUpdate = jest.fn();
     render(<WatchedSites sites={[makeSite()]} onUpdate={onUpdate} onRemove={jest.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /fetch/i }));
     await waitFor(() => expect(onUpdate).toHaveBeenCalled());
     expect(global.fetch).toHaveBeenCalledWith("/api/scrape", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("appends an error entry to history when fetch fails", async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error("network error"));
+    const onUpdate = jest.fn();
+    render(<WatchedSites sites={[makeSite()]} onUpdate={onUpdate} onRemove={jest.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /fetch/i }));
+    await waitFor(() => expect(onUpdate).toHaveBeenCalled());
+    const patch = onUpdate.mock.calls[0][1];
+    expect(patch.error).toBe("network error");
+    expect(patch.history).toHaveLength(1);
+    expect(patch.history[0].classification).toBe("error");
+    expect(patch.history[0].description).toBe("network error");
   });
 });

@@ -19,6 +19,13 @@ describe("addSite", () => {
     expect(site.url).toBe("https://example.com");
   });
 
+  it("returns the existing site when the URL is already watched", async () => {
+    const first = await addSite("https://example.com");
+    const second = await addSite("https://example.com");
+    expect(second.id).toBe(first.id);
+    expect(await getSites()).toHaveLength(1);
+  });
+
   it("auto-prefixes https:// if missing", async () => {
     const site = await addSite("example.com");
     expect(site.url).toBe("https://example.com");
