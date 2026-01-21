@@ -30,8 +30,10 @@ It maps one-to-one with the test suite — every behaviour listed there should h
 
 ## After every push
 
-1. Start the dev server: `pnpm dev`
-2. Verify it loads: `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000` — must return `200`
+1. Clear cache and restart dev server: `pkill -f "next dev" 2>/dev/null; rm -rf .next && pnpm dev &`
+2. Verify it loads: `sleep 8 && curl -s -o /dev/null -w "%{http_code}" http://localhost:3000` — must return `200`
+
+**Why clear `.next`?** Turbopack's incremental cache goes stale after significant module graph changes (e.g. removing imports, adding components). Symptom is "Internal Server Error" / React Client Manifest error despite a clean build. Always wipe it after a push.
 
 **How to update it:**
 - Edit the relevant section(s) in place — don't append to the bottom
@@ -50,7 +52,7 @@ Next.js 15 App Router with Turbopack. `page.tsx` is a client component that owns
 
 **Component model:** Most components are Server Components. Client components: `Hero.tsx`, `WatchedSites.tsx`, `page.tsx`. New components default to server unless they need interactivity.
 
-**State & storage:** `lib/storage.ts` wraps IndexedDB via the `idb` library. All functions are async. Large fields (`lastScreenshot`, `lastHtml`, `lastRawHtml`, `ChangeEntry.screenshot`) are stripped before writing — kept in React state for the session only. Site status (`sniffing | quiet | changed | error`) is derived at runtime, never persisted. Legacy `watchdog-sites-v1` localStorage data is auto-migrated on first open.
+**State & storage:** `lib/storage.ts` wraps IndexedDB via the `idb` library. All functions are async. `lastHtml`, `lastRawHtml`, and `ChangeEntry.screenshot` are stripped before writing (unused / per-entry bloat). `lastScreenshot` is persisted. Site status (`sniffing | quiet | changed | error`) is derived at runtime, never persisted. Legacy `watchdog-sites-v1` localStorage data is auto-migrated on first open.
 
 **Intelligence:** `POST /api/extract` (Claude Haiku) extracts a watch-target value from markdown. `POST /api/describe-change` (Claude Haiku) writes a plain-English change description. Both strip markdown code fences before JSON parsing the response.
 

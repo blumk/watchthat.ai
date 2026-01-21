@@ -99,8 +99,8 @@ export async function updateSite(id: string, patch: Partial<WatchedSite>): Promi
   const db = await getDB();
   const site = await db.get("sites", id);
   if (!site) return;
-  // Strip large binary fields before persisting — kept in React state for the session
-  const { lastScreenshot: _s, lastHtml: _h, lastRawHtml: _r, ...persistable } = patch;
+  // Strip unused HTML fields and per-entry screenshots (too many) before persisting
+  const { lastHtml: _h, lastRawHtml: _r, ...persistable } = patch;
   const historyToPersist = persistable.history?.map(({ screenshot: _sc, ...entry }) => entry);
   await db.put("sites", {
     ...site,
