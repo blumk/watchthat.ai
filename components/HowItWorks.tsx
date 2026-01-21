@@ -18,7 +18,7 @@ const steps = [
 
 export default function HowItWorks() {
   return (
-    <section id="how" className="max-w-[720px] mx-auto px-6 pb-18">
+    <section id="how" className="max-w-[720px] mx-auto px-6 pt-16 pb-8">
       <h2 className="text-[20px] font-extrabold tracking-tight mb-6 text-center text-[var(--t1)]">
         How it works
       </h2>

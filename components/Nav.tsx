@@ -9,16 +9,16 @@ export default function Nav() {
       </div>
       <div className="hidden sm:flex gap-7 text-sm font-medium text-[var(--t2)]">
         <a
-          href="#features"
-          className="hover:text-[var(--t1)] transition-colors duration-200"
-        >
-          Features
-        </a>
-        <a
           href="#how"
           className="hover:text-[var(--t1)] transition-colors duration-200"
         >
           How it works
+        </a>
+        <a
+          href="#pricing"
+          className="hover:text-[var(--t1)] transition-colors duration-200"
+        >
+          Pricing
         </a>
       </div>
     </nav>
