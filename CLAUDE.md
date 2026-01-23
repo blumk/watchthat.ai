@@ -50,7 +50,7 @@ Next.js 15 App Router with Turbopack. `page.tsx` is a client component that owns
 
 **Component model:** Most components are Server Components. Client components: `Hero.tsx`, `WatchedSites.tsx`, `page.tsx`. New components default to server unless they need interactivity.
 
-**State & storage:** `lib/storage.ts` wraps IndexedDB via the `idb` library. All functions are async. `lastHtml`, `lastRawHtml`, and `ChangeEntry.screenshot` are stripped before writing (unused / per-entry bloat). `lastScreenshot` is persisted. Site status (`sniffing | quiet | changed | error`) is derived at runtime, never persisted. Legacy `watchdog-sites-v1` localStorage data is auto-migrated on first open.
+**State & storage:** `lib/storage.ts` wraps IndexedDB via the `idb` library. All functions are async. `lastHtml` and `lastRawHtml` are stripped before writing (unused). All other fields including `lastScreenshot` and `ChangeEntry.screenshot` are persisted. Site status (`sniffing | quiet | changed | error`) is derived at runtime, never persisted. Legacy `watchdog-sites-v1` localStorage data is auto-migrated on first open.
 
 **Intelligence:** `POST /api/extract` (Claude Haiku) extracts a watch-target value from markdown. `POST /api/describe-change` (Claude Haiku) writes a plain-English change description. Both strip markdown code fences before JSON parsing the response.
 

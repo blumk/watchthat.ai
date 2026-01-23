@@ -32,10 +32,18 @@ function deriveStatus(site: WatchedSite, sniffing: boolean): SiteStatus {
   return "quiet";
 }
 
-const STATUS_LABEL: Record<Exclude<SiteStatus, "quiet" | "changed">, string> = {
-  sniffing: "Sniffing…",
-  error: "Error",
-};
+const SNIFF_LABELS = [
+  "Sniffing…",
+  "Fetching…",
+  "Parsing HTML…",
+  "Rendering JS…",
+  "Crawling page…",
+  "Reading DOM…",
+  "Scanning text…",
+  "Hashing bytes…",
+  "Crunching markup…",
+  "Inspecting…",
+];
 
 function timeAgo(ts: number | null): string {
   if (ts === null) return "never";
@@ -60,7 +68,15 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   const [showTargetInput, setShowTargetInput] = useState<Set<string>>(new Set());
   const [selectedEntry, setSelectedEntry] = useState<Record<string, number>>({});
   const [modalScreenshot, setModalScreenshot] = useState<string | null>(null);
+  const [sniffPhase, setSniffPhase] = useState(0);
   const autoFetched = useRef<Set<string>>(new Set());
+
+  // Cycle sniff label while any fetch is in progress
+  useEffect(() => {
+    if (sniffing.size === 0) return;
+    const id = setInterval(() => setSniffPhase((p) => p + 1), 1500);
+    return () => clearInterval(id);
+  }, [sniffing.size]);
 
   // Auto-fetch any site that has never been checked
   useEffect(() => {
@@ -331,7 +347,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                       style={{ color: statusColor }}
                     >
                       {status === "sniffing" || status === "error"
-                        ? STATUS_LABEL[status]
+                        ? (status === "sniffing" ? SNIFF_LABELS[sniffPhase % SNIFF_LABELS.length] : "Error")
                         : timeAgo(
                             status === "changed"
                               ? (site.history?.at(-1)?.timestamp ?? site.lastChecked)
