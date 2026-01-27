@@ -125,7 +125,7 @@ this doc is the human-readable summary.
 - "How it works" link points to `#how` (home view only) [`Nav.test.tsx`]
 - "Pricing" link points to `#pricing` (home view only) [`Nav.test.tsx`]
 - "My Watch List" tab hidden until first site is added [`Nav.test.tsx`]
-- "My Watch List" tab switches to watchlist view; anchor links hidden on watchlist view [`Nav.test.tsx`]
+- "My Watch List" tab switches to watchlist view; anchor links shown grayed out on watchlist view [`Nav.test.tsx`]
 - Clicking the logo/brand switches back to home view [`Nav.test.tsx`]
 
 ---

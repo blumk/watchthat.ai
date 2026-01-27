@@ -19,16 +19,20 @@ export default function Nav({ hasSites = false, view = "home", onSwitchView }: P
         Watchdog
       </button>
       <div className="hidden sm:flex items-center gap-7 text-sm font-medium text-[var(--t2)]">
-        {view === "home" && (
-          <>
-            <a href="#how" className="hover:text-[var(--t1)] transition-colors duration-200">
-              How it works
-            </a>
-            <a href="#pricing" className="hover:text-[var(--t1)] transition-colors duration-200">
-              Pricing
-            </a>
-          </>
-        )}
+        <a
+          href="#how"
+          onClick={() => onSwitchView?.("home")}
+          className={`transition-colors duration-200 ${view === "watchlist" ? "text-[var(--t3)] hover:text-[var(--t2)] opacity-50" : "hover:text-[var(--t1)]"}`}
+        >
+          How it works
+        </a>
+        <a
+          href="#pricing"
+          onClick={() => onSwitchView?.("home")}
+          className={`transition-colors duration-200 ${view === "watchlist" ? "text-[var(--t3)] hover:text-[var(--t2)] opacity-50" : "hover:text-[var(--t1)]"}`}
+        >
+          Pricing
+        </a>
         {hasSites && (
           <button
             onClick={() => onSwitchView?.(view === "watchlist" ? "home" : "watchlist")}

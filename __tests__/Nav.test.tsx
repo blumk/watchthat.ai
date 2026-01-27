@@ -31,10 +31,10 @@ describe("Nav", () => {
     expect(screen.getByText("My Watch List")).toBeInTheDocument();
   });
 
-  it("hides anchor links on watchlist view", () => {
+  it("shows anchor links grayed out on watchlist view", () => {
     render(<Nav hasSites={true} view="watchlist" onSwitchView={jest.fn()} />);
-    expect(screen.queryByText("How it works")).not.toBeInTheDocument();
-    expect(screen.queryByText("Pricing")).not.toBeInTheDocument();
+    expect(screen.getByText("How it works")).toBeInTheDocument();
+    expect(screen.getByText("Pricing")).toBeInTheDocument();
   });
 
   it("calls onSwitchView with watchlist when My Watch List is clicked from home", () => {
