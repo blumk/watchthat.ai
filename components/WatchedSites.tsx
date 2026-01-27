@@ -140,12 +140,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
       patch.changed = contentChanged;
       patch.changeDescription = null;
 
-      if (site.lastHash === null) {
-        patch.history = [
-          ...(site.history ?? []),
-          makeEntry("Initial snapshot taken.", "quiet", undefined, undefined, data.screenshot),
-        ];
-      } else if (contentChanged && site.lastContent) {
+      if (contentChanged && site.lastContent) {
         const descRes = await fetch("/api/describe-change", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -163,11 +158,6 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
         patch.history = [
           ...(site.history ?? []),
           makeEntry(descData.description, descData.classification, site.lastContent ?? undefined, data.markdown, data.screenshot),
-        ];
-      } else {
-        patch.history = [
-          ...(site.history ?? []),
-          makeEntry("No changes detected.", "quiet", undefined, undefined, data.screenshot),
         ];
       }
 
@@ -239,12 +229,8 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
             const panelScreenshot = histEntry?.screenshot ?? site.lastScreenshot;
             const isExpanded = expandedCards.has(site.id);
             const hasExpandable = histEntries.length > 0 || !!panelScreenshot;
-            const latestEntry = histEntries[0] ?? null;
-            const subtitle = latestEntry
-              ? latestEntry.classification === "quiet" || latestEntry.classification === "error"
-                ? `Last checked ${timeAgo(latestEntry.timestamp)}`
-                : latestEntry.description
-              : null;
+            const lastChange = histEntries.find(e => e.classification !== "quiet") ?? null;
+            const subtitle = lastChange?.description ?? null;
 
             return (
               <div
