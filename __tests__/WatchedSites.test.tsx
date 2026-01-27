@@ -16,9 +16,6 @@ const makeSite = (overrides: Partial<WatchedSite> = {}): WatchedSite => ({
   lastHtml: null,
   lastRawHtml: null,
   lastScreenshot: null,
-  watchTarget: null,
-  lastExtractedValue: null,
-  lastExtractedHash: null,
   changeDescription: null,
   changed: false,
   error: null,
@@ -76,22 +73,11 @@ describe("WatchedSites", () => {
     expect(screen.getByText(/error/i)).toBeInTheDocument();
   });
 
-  it("calls onRemove when Remove button is clicked", () => {
+  it("calls onRemove when Remove button is clicked after expanding", () => {
+    const history = [{ id: "h1", timestamp: Date.now() - 5000, description: "Initial snapshot taken.", classification: "quiet" as const }];
     const onRemove = jest.fn();
-    render(<WatchedSites sites={[makeSite()]} onUpdate={jest.fn()} onRemove={onRemove} />);
-    fireEvent.click(screen.getByRole("button", { name: /remove/i }));
-    expect(onRemove).toHaveBeenCalledWith("abc123");
-  });
-
-  it("shows Remove button inline for error sites with no content", () => {
-    const onRemove = jest.fn();
-    render(
-      <WatchedSites
-        sites={[makeSite({ error: "fetch failed", lastContent: null, lastHtml: null, lastScreenshot: null, lastHash: null })]}
-        onUpdate={jest.fn()}
-        onRemove={onRemove}
-      />
-    );
+    render(<WatchedSites sites={[makeSite({ history })]} onUpdate={jest.fn()} onRemove={onRemove} />);
+    fireEvent.click(screen.getByRole("button", { name: /show changelog/i }));
     fireEvent.click(screen.getByRole("button", { name: /remove/i }));
     expect(onRemove).toHaveBeenCalledWith("abc123");
   });
@@ -118,28 +104,6 @@ describe("WatchedSites", () => {
     expect(screen.queryByRole("button", { name: /open screenshot/i })).not.toBeInTheDocument();
   });
 
-  it("shows watch target edit button", () => {
-    render(<WatchedSites sites={[makeSite()]} onUpdate={jest.fn()} onRemove={jest.fn()} />);
-    expect(screen.getByRole("button", { name: /edit watch target/i })).toBeInTheDocument();
-  });
-
-  it("shows watch target input when edit button is clicked", () => {
-    render(<WatchedSites sites={[makeSite()]} onUpdate={jest.fn()} onRemove={jest.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: /edit watch target/i }));
-    expect(screen.getByPlaceholderText(/Pro plan price/i)).toBeInTheDocument();
-  });
-
-  it("displays extracted value when watchTarget and lastExtractedValue are set", () => {
-    render(
-      <WatchedSites
-        sites={[makeSite({ watchTarget: "CEO name", lastExtractedValue: "Jane Doe" })]}
-        onUpdate={jest.fn()}
-        onRemove={jest.fn()}
-      />
-    );
-    expect(screen.getByText("Jane Doe")).toBeInTheDocument();
-  });
-
   it("renders all history entries in the scrollable list", () => {
     const history = [
       { id: "h1", timestamp: Date.now() - 120000, description: "First change.", classification: "minor" as const },
@@ -148,6 +112,7 @@ describe("WatchedSites", () => {
     render(
       <WatchedSites sites={[makeSite({ history })]} onUpdate={jest.fn()} onRemove={jest.fn()} />
     );
+    fireEvent.click(screen.getByRole("button", { name: /show changelog/i }));
     expect(screen.getByText("First change.")).toBeInTheDocument();
     expect(screen.getByText("Second change.")).toBeInTheDocument();
   });
@@ -160,6 +125,7 @@ describe("WatchedSites", () => {
     render(
       <WatchedSites sites={[makeSite({ history })]} onUpdate={jest.fn()} onRemove={jest.fn()} />
     );
+    fireEvent.click(screen.getByRole("button", { name: /show changelog/i }));
     fireEvent.click(screen.getByText("First change."));
     expect(screen.getByText("First change.")).toBeInTheDocument();
   });
@@ -172,6 +138,7 @@ describe("WatchedSites", () => {
         onRemove={jest.fn()}
       />
     );
+    fireEvent.click(screen.getByRole("button", { name: /show changelog/i }));
     expect(screen.getByText("Initial snapshot taken.")).toBeInTheDocument();
   });
 
