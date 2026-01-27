@@ -223,18 +223,15 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
         </div>
       )}
 
-      <section className="max-w-[700px] mx-auto px-6 pb-16">
-        <div className="flex flex-col gap-3">
+      <section className="max-w-[1080px] mx-auto px-6 pb-16">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {sites.map((site) => {
             const status = deriveStatus(site, sniffing.has(site.id));
-            const statusColor =
-              status === "quiet"
-                ? "var(--green)"
-                : status === "changed"
-                  ? "var(--red)"
-                  : status === "error"
-                    ? "var(--t3)"
-                    : "var(--blue)";
+            const dotColor =
+              status === "quiet" ? "var(--green)"
+              : status === "changed" ? "var(--red)"
+              : status === "error" ? "var(--t3)"
+              : "var(--blue)";
 
             const histEntries = [...(site.history ?? [])].reverse();
             const histIdx = Math.min(selectedEntry[site.id] ?? 0, Math.max(0, histEntries.length - 1));
@@ -252,146 +249,119 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
             return (
               <div
                 key={site.id}
-                className="group bg-[var(--bg2)] border border-[var(--bdr)] hover:border-[var(--t3)] rounded-2xl overflow-hidden transition-colors"
+                className="group bg-[var(--bg2)] border border-[var(--bdr)] hover:border-[var(--t3)] rounded-2xl overflow-hidden transition-colors flex flex-col"
               >
-                {/* Main row */}
-                <div className="flex items-center gap-3 px-4 py-3">
-                  {/* Thumbnail — reflects selected history entry; click opens modal */}
+                {/* Screenshot header — click opens modal */}
+                <button
+                  aria-label="Open screenshot"
+                  onClick={() => panelScreenshot && setModalScreenshot(panelScreenshot)}
+                  className={`relative w-full aspect-video overflow-hidden p-0 border-none bg-[var(--bg3)] ${panelScreenshot ? "cursor-zoom-in" : "cursor-default"}`}
+                >
                   {panelScreenshot && (
-                    <button
-                      aria-label="Open screenshot"
-                      onClick={() => setModalScreenshot(panelScreenshot)}
-                      className="relative shrink-0 w-[60px] h-[38px] rounded-lg overflow-hidden border border-[var(--bdr)] hover:border-[var(--t3)] transition-colors cursor-zoom-in p-0"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={panelScreenshot}
-                        alt={`Screenshot of ${site.label}`}
-                        className="absolute inset-0 w-full h-full object-cover object-top"
-                      />
-                    </button>
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={panelScreenshot}
+                      alt={`Screenshot of ${site.label}`}
+                      className="absolute inset-0 w-full h-full object-cover object-top"
+                    />
                   )}
+                  {/* Status dot */}
+                  <span
+                    className="absolute top-2 right-2 w-2 h-2 rounded-full shadow"
+                    style={{ background: dotColor }}
+                  />
+                </button>
 
-                  {/* Label + subtitle / extracted value */}
+                {/* Card footer */}
+                <div className="flex items-start gap-2 px-3 py-2.5">
+                  {/* Label + subtitle */}
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-mono text-[var(--t1)] truncate block">
+                    <span className="text-sm font-mono text-[var(--t1)] truncate block leading-snug">
                       {site.label}
                     </span>
                     {!isExpanded && subtitle && (
-                      <span className="text-xs font-mono text-[var(--t3)] truncate block">
+                      <span className="text-xs font-mono text-[var(--t3)] truncate block mt-0.5">
                         {subtitle}
                       </span>
                     )}
                   </div>
 
-                  {/* Timestamp */}
-                  <div className="shrink-0 text-right">
-                    <span className="text-xs font-mono text-[var(--t3)] block">
+                  {/* Time + actions */}
+                  <div className="shrink-0 flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[10px] font-mono text-[var(--t3)]">
                       {status === "sniffing"
                         ? SNIFF_LABELS[sniffPhase % SNIFF_LABELS.length]
                         : status === "error"
                         ? "Error"
                         : timeAgo(site.lastChecked)}
                     </span>
-                  </div>
-
-                  {/* Expand/collapse chevron — always visible when there's a changelog */}
-                  {hasExpandable && (
-                    <button
-                      aria-label={isExpanded ? "Hide changelog" : "Show changelog"}
-                      onClick={() => toggleCard(site.id)}
-                      className="shrink-0 text-[var(--t3)] hover:text-[var(--t1)] transition-colors text-sm leading-none cursor-pointer bg-transparent border-none"
-                    >
-                      {isExpanded ? "▴" : "▾"}
-                    </button>
-                  )}
-
-                  {/* Actions — revealed on hover */}
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {/* Refresh button */}
                     <button
                       aria-label="Fetch"
                       onClick={() => fetchSite(site)}
                       disabled={sniffing.has(site.id)}
-                      title="Refresh"
-                      className="shrink-0 text-[var(--t3)] hover:text-[var(--t1)] transition-colors text-base leading-none cursor-pointer bg-transparent border-none disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--t3)] hover:text-[var(--t1)] text-sm leading-none cursor-pointer bg-transparent border-none disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       ↻
                     </button>
+                    {hasExpandable && (
+                      <button
+                        aria-label={isExpanded ? "Hide changelog" : "Show changelog"}
+                        onClick={() => toggleCard(site.id)}
+                        className="text-[var(--t3)] hover:text-[var(--t1)] transition-colors text-xs leading-none cursor-pointer bg-transparent border-none"
+                      >
+                        {isExpanded ? "▴" : "▾"}
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Change history — scrollable list left, screenshot right */}
-                {isExpanded && (histEntries.length > 0 || panelScreenshot) && (
-                  <div className="border-t border-[var(--bdr)] flex items-stretch">
-                    {/* Left: scrollable entry list */}
-                    {histEntries.length > 0 && (
-                    <div className="flex-1 min-w-0 overflow-y-auto max-h-[260px]">
-                      {histEntries.map((entry, idx) => {
-                        const isSelected = idx === histIdx;
-                        const entryColor =
-                          entry.classification === "major"
-                            ? "var(--red)"
-                            : entry.classification === "quiet"
-                            ? "var(--green)"
-                            : entry.classification === "error"
-                            ? "var(--red)"
-                            : "var(--t3)";
-                        return (
-                          <div
-                            key={entry.id}
-                            onClick={() => setSelectedEntry((p) => ({ ...p, [site.id]: idx }))}
-                            className={`px-4 py-2.5 cursor-pointer border-b border-[var(--bdr)] last:border-b-0 transition-colors ${
-                              isSelected ? "bg-[var(--bg3)]" : "hover:bg-[var(--bg)]"
-                            }`}
-                          >
-                            <div className="flex items-start gap-2 min-w-0">
-                              <span
-                                className="shrink-0 w-1.5 h-1.5 rounded-full mt-1"
-                                style={{ background: entryColor }}
-                              />
-                              <span className="text-xs text-[var(--t2)] flex-1 leading-snug">
-                                {entry.description}
-                              </span>
-                              <div className="shrink-0 ml-2 text-right">
-                                <div className="text-[10px] font-mono text-[var(--t3)]">
-                                  {timeAgo(entry.timestamp)}
-                                </div>
-                                <div className="text-[9px] font-mono text-[var(--t3)] opacity-50">
-                                  {new Date(entry.timestamp).toLocaleString(undefined, {
-                                    month: "short", day: "numeric",
-                                    hour: "2-digit", minute: "2-digit",
-                                  })}
-                                </div>
+                {/* Expanded: history log */}
+                {isExpanded && histEntries.length > 0 && (
+                  <div className="border-t border-[var(--bdr)] overflow-y-auto max-h-[220px]">
+                    {histEntries.map((entry, idx) => {
+                      const isSelected = idx === histIdx;
+                      const entryColor =
+                        entry.classification === "major" ? "var(--red)"
+                        : entry.classification === "quiet" ? "var(--green)"
+                        : entry.classification === "error" ? "var(--red)"
+                        : "var(--t3)";
+                      return (
+                        <div
+                          key={entry.id}
+                          onClick={() => setSelectedEntry((p) => ({ ...p, [site.id]: idx }))}
+                          className={`px-3 py-2 cursor-pointer border-b border-[var(--bdr)] last:border-b-0 transition-colors ${
+                            isSelected ? "bg-[var(--bg3)]" : "hover:bg-[var(--bg)]"
+                          }`}
+                        >
+                          <div className="flex items-start gap-2 min-w-0">
+                            <span
+                              className="shrink-0 w-1.5 h-1.5 rounded-full mt-1"
+                              style={{ background: entryColor }}
+                            />
+                            <span className="text-xs text-[var(--t2)] flex-1 leading-snug">
+                              {entry.description}
+                            </span>
+                            <div className="shrink-0 ml-1 text-right">
+                              <div className="text-[10px] font-mono text-[var(--t3)]">
+                                {timeAgo(entry.timestamp)}
+                              </div>
+                              <div className="text-[9px] font-mono text-[var(--t3)] opacity-50">
+                                {new Date(entry.timestamp).toLocaleString(undefined, {
+                                  month: "short", day: "numeric",
+                                  hour: "2-digit", minute: "2-digit",
+                                })}
                               </div>
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                    )}
-
-                    {/* Right: screenshot for the selected entry — click opens modal */}
-                    {panelScreenshot && (
-                      <button
-                        aria-label="Open screenshot"
-                        onClick={() => setModalScreenshot(panelScreenshot)}
-                        className="relative shrink-0 w-[220px] self-stretch border-l border-[var(--bdr)] min-h-[120px] cursor-zoom-in p-0 overflow-hidden"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={panelScreenshot}
-                          alt={`Screenshot of ${site.label}`}
-                          className="absolute inset-0 w-full h-full object-cover object-top"
-                        />
-                      </button>
-                    )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
                 {/* Remove — shown in expanded footer */}
                 {isExpanded && (
-                  <div className="border-t border-[var(--bdr)] px-4 py-2 flex justify-end">
+                  <div className="border-t border-[var(--bdr)] px-3 py-2 flex justify-end mt-auto">
                     <button
                       aria-label="Remove"
                       onClick={() => handleRemove(site.id)}

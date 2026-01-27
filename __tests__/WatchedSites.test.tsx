@@ -93,7 +93,7 @@ describe("WatchedSites", () => {
     expect(screen.getAllByRole("button", { name: /open screenshot/i }).length).toBeGreaterThanOrEqual(1);
   });
 
-  it("does not show screenshot button when no screenshot is available", () => {
+  it("screenshot header button does not open modal when no screenshot is available", () => {
     render(
       <WatchedSites
         sites={[makeSite({ lastScreenshot: null })]}
@@ -101,7 +101,10 @@ describe("WatchedSites", () => {
         onRemove={jest.fn()}
       />
     );
-    expect(screen.queryByRole("button", { name: /open screenshot/i })).not.toBeInTheDocument();
+    // Button still renders as the card header but has cursor-default and no-ops on click
+    const btn = screen.getByRole("button", { name: /open screenshot/i });
+    fireEvent.click(btn);
+    expect(screen.queryByRole("img", { name: /full screenshot/i })).not.toBeInTheDocument();
   });
 
   it("renders all history entries in the scrollable list", () => {
