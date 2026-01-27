@@ -42,7 +42,7 @@ Do not rewrite the whole doc for minor changes — surgical edits only.
 
 ## Architecture
 
-Next.js 15 App Router with Turbopack. `page.tsx` is a client component that owns `WatchedSite[]` state and passes callbacks down to `Hero` (adds sites) and `WatchedSites` (fetches/removes/updates).
+Next.js 15 App Router (webpack dev bundler — Turbopack removed due to stale manifest bugs). `page.tsx` is a client component that owns `WatchedSite[]` state and passes callbacks down to `Hero` (adds sites) and `WatchedSites` (fetches/removes/updates).
 
 **Fetching:** `POST /api/scrape` proxies to Firecrawl.dev and returns `{ markdown, html, rawHtml, screenshot }`. API key is server-side only. Firecrawl SDK v4 uses `.scrape()`, throws on error, returns `Document` directly. Full-page screenshot via `actions: [{ type: "screenshot", fullPage: true }]`; result at `result.actions.screenshots[0]`.
 
