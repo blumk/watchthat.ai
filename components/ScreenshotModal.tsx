@@ -8,14 +8,14 @@ interface Props {
   onClose: () => void;
 }
 
-const MIN_SCALE = 1;
 const MAX_SCALE = 8;
 
 type View = { scale: number; x: number; y: number };
 
-function zoomAt(v: View, newScale: number, cx: number, cy: number): View {
-  const s = Math.min(Math.max(newScale, MIN_SCALE), MAX_SCALE);
-  if (s <= MIN_SCALE) return { scale: MIN_SCALE, x: 0, y: 0 };
+// zoomAt: zoom to newScale keeping the point (cx, cy) — relative to container center — fixed
+function zoomAt(v: View, newScale: number, cx: number, cy: number, minScale: number): View {
+  const s = Math.min(Math.max(newScale, minScale), MAX_SCALE);
+  if (s <= minScale) return { scale: minScale, x: 0, y: 0 };
   const f = s / v.scale;
   return { scale: s, x: cx + (v.x - cx) * f, y: cy + (v.y - cy) * f };
 }
@@ -29,9 +29,13 @@ function touchMid(t: React.TouchList) {
 
 export default function ScreenshotModal({ src, alt = "Screenshot", onClose }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   // Mirror view in a ref so wheel/touch handlers always see latest value without stale closures
   const viewRef = useRef<View>({ scale: 1, x: 0, y: 0 });
+  const fitScaleRef = useRef(1);
   const [view, _setView] = useState<View>({ scale: 1, x: 0, y: 0 });
+  const [fitScale, setFitScale] = useState(1);
+  const [loaded, setLoaded] = useState(false);
 
   const dragging = useRef(false);
   const dragMoved = useRef(false);
@@ -45,6 +49,22 @@ export default function ScreenshotModal({ src, alt = "Screenshot", onClose }: Pr
     _setView(next);
   }
 
+  // On image load: compute the scale that fits the natural image into the viewport
+  function computeFit() {
+    const img = imgRef.current;
+    const container = containerRef.current;
+    if (!img || !container || !img.naturalWidth) return;
+    const fit = Math.min(
+      container.clientWidth / img.naturalWidth,
+      container.clientHeight / img.naturalHeight,
+      1 // never upscale beyond natural size for the initial fit
+    );
+    fitScaleRef.current = fit;
+    setFitScale(fit);
+    applyView(() => ({ scale: fit, x: 0, y: 0 }));
+    setLoaded(true);
+  }
+
   // Escape to close
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -52,7 +72,7 @@ export default function ScreenshotModal({ src, alt = "Screenshot", onClose }: Pr
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
 
-  // Wheel zoom — must be non-passive to call preventDefault
+  // Wheel zoom — non-passive so we can preventDefault
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -62,10 +82,16 @@ export default function ScreenshotModal({ src, alt = "Screenshot", onClose }: Pr
       const cx = e.clientX - rect.left - rect.width / 2;
       const cy = e.clientY - rect.top - rect.height / 2;
       const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-      applyView(v => zoomAt(v, v.scale * factor, cx, cy));
+      applyView(v => zoomAt(v, v.scale * factor, cx, cy, fitScaleRef.current));
     };
     el.addEventListener("wheel", h, { passive: false });
     return () => el.removeEventListener("wheel", h);
+  }, []);
+
+  // Recompute fit on window resize
+  useEffect(() => {
+    window.addEventListener("resize", computeFit);
+    return () => window.removeEventListener("resize", computeFit);
   }, []);
 
   // Mouse drag to pan
@@ -81,7 +107,9 @@ export default function ScreenshotModal({ src, alt = "Screenshot", onClose }: Pr
     const dy = e.clientY - lastPt.current.y;
     if (dx || dy) dragMoved.current = true;
     lastPt.current = { x: e.clientX, y: e.clientY };
-    if (viewRef.current.scale > 1) applyView(v => ({ ...v, x: v.x + dx, y: v.y + dy }));
+    if (viewRef.current.scale > fitScaleRef.current) {
+      applyView(v => ({ ...v, x: v.x + dx, y: v.y + dy }));
+    }
   }
   function onMouseUp() { dragging.current = false; }
 
@@ -96,7 +124,6 @@ export default function ScreenshotModal({ src, alt = "Screenshot", onClose }: Pr
     }
   }
   function onTouchMove(e: React.TouchEvent) {
-    // touch-action:none on the container prevents default browser behavior
     if (e.touches.length === 2 && pinchDist.current !== null) {
       const d = touchDist(e.touches);
       const m = touchMid(e.touches);
@@ -106,7 +133,7 @@ export default function ScreenshotModal({ src, alt = "Screenshot", onClose }: Pr
       const pdx = m.x - pinchMid.current.x;
       const pdy = m.y - pinchMid.current.y;
       applyView(v => {
-        const zoomed = zoomAt(v, v.scale * (d / pinchDist.current!), cx, cy);
+        const zoomed = zoomAt(v, v.scale * (d / pinchDist.current!), cx, cy, fitScaleRef.current);
         return { ...zoomed, x: zoomed.x + pdx, y: zoomed.y + pdy };
       });
       pinchDist.current = d;
@@ -116,22 +143,25 @@ export default function ScreenshotModal({ src, alt = "Screenshot", onClose }: Pr
       const dy = e.touches[0].clientY - lastPt.current.y;
       if (dx || dy) dragMoved.current = true;
       lastPt.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      if (viewRef.current.scale > 1) applyView(v => ({ ...v, x: v.x + dx, y: v.y + dy }));
+      if (viewRef.current.scale > fitScaleRef.current) {
+        applyView(v => ({ ...v, x: v.x + dx, y: v.y + dy }));
+      }
     }
   }
   function onTouchEnd(e: React.TouchEvent) {
     if (e.touches.length < 2) pinchDist.current = null;
-    // Tap with no movement at scale 1 → close
-    if (e.touches.length === 0 && !dragMoved.current && viewRef.current.scale <= MIN_SCALE) {
+    if (e.touches.length === 0 && !dragMoved.current && viewRef.current.scale <= fitScaleRef.current) {
       onClose();
     }
   }
 
+  // Show percentage relative to natural size (100% = pixel-perfect)
   const pct = Math.round(view.scale * 100);
+  const atFit = view.scale <= fitScale + 0.001;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/92 flex flex-col">
-      {/* Zoomable image area — clicking the backdrop (not the image) closes */}
+      {/* Zoomable image area — clicking the backdrop closes */}
       <div
         ref={containerRef}
         className="flex-1 flex items-center justify-center overflow-hidden select-none"
@@ -147,15 +177,21 @@ export default function ScreenshotModal({ src, alt = "Screenshot", onClose }: Pr
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
+          ref={imgRef}
           src={src}
           alt={alt}
           draggable={false}
-          className="max-w-[90vw] max-h-[calc(100vh-56px)] object-contain rounded select-none"
+          onLoad={computeFit}
+          className="rounded select-none"
           style={{
+            // No max-width/max-height — rendered at natural resolution so zoom-in is crisp
+            maxWidth: "none",
+            maxHeight: "none",
             transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
             transformOrigin: "center center",
-            cursor: view.scale > 1 ? "grab" : "zoom-in",
+            cursor: view.scale > fitScale ? "grab" : "zoom-in",
             willChange: "transform",
+            opacity: loaded ? 1 : 0,
           }}
         />
       </div>
@@ -168,34 +204,26 @@ export default function ScreenshotModal({ src, alt = "Screenshot", onClose }: Pr
         <div className="flex items-center gap-2">
           <button
             aria-label="Zoom out"
-            onClick={() => applyView(v => zoomAt(v, v.scale / 1.5, 0, 0))}
-            disabled={view.scale <= MIN_SCALE}
+            onClick={() => applyView(v => zoomAt(v, v.scale / 1.5, 0, 0, fitScale))}
+            disabled={atFit}
             className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xl leading-none flex items-center justify-center disabled:opacity-25 cursor-pointer border-none transition-colors"
-          >
-            −
-          </button>
+          >−</button>
           <button
             aria-label="Reset zoom"
-            onClick={() => applyView(() => ({ scale: 1, x: 0, y: 0 }))}
+            onClick={() => applyView(() => ({ scale: fitScale, x: 0, y: 0 }))}
             className="text-xs font-mono text-white/40 hover:text-white/70 w-12 text-center cursor-pointer bg-transparent border-none transition-colors"
-          >
-            {pct}%
-          </button>
+          >{pct}%</button>
           <button
             aria-label="Zoom in"
-            onClick={() => applyView(v => zoomAt(v, v.scale * 1.5, 0, 0))}
+            onClick={() => applyView(v => zoomAt(v, v.scale * 1.5, 0, 0, fitScale))}
             disabled={view.scale >= MAX_SCALE}
             className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xl leading-none flex items-center justify-center disabled:opacity-25 cursor-pointer border-none transition-colors"
-          >
-            +
-          </button>
+          >+</button>
         </div>
         <button
           onClick={onClose}
           className="px-4 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium cursor-pointer border-none transition-colors"
-        >
-          Close
-        </button>
+        >Close</button>
       </div>
     </div>
   );
