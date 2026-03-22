@@ -17,7 +17,17 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {/* Auto-reload if webpack fails to hydrate a chunk after a server restart */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          window.addEventListener('error', function(e) {
+            if (e && e.message && e.message.indexOf('__webpack_modules__') !== -1) {
+              window.location.reload();
+            }
+          });
+        `}} />
+        {children}
+      </body>
     </html>
   );
 }
