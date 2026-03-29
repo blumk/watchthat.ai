@@ -289,4 +289,6 @@ has all kinds of whole-body health benefits.</p></div><div class="overflow-hidde
   changed: false,
   error: null,
   history: [],
+  watchTarget: null,
+  refreshInterval: null,
 };
