@@ -232,7 +232,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
         <ScreenshotModal src={modalScreenshot} onClose={() => setModalScreenshot(null)} />
       )}
 
-      <section className="max-w-[1080px] mx-auto px-6 pb-16">
+      <section className="max-w-[1080px] mx-auto px-6 pt-4 pb-16">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
           {sites.map((site) => {
             const status = deriveStatus(site, sniffing.has(site.id));

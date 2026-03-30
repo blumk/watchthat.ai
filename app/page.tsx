@@ -37,7 +37,7 @@ function AddBar({ onAdd }: { onAdd: (url: string) => void }) {
         onClick={submit}
         className="shrink-0 px-4 py-2 rounded-xl bg-[var(--blue)] text-white text-sm font-semibold cursor-pointer border-none hover:brightness-110 transition-all"
       >
-        Watch
+        Watch →
       </button>
     </div>
   );
