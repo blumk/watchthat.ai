@@ -2,9 +2,9 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import Nav from "@/components/Nav";
 
 describe("Nav", () => {
-  it("renders the Watchdog brand name", () => {
+  it("renders the Watchthat brand name", () => {
     render(<Nav />);
-    expect(screen.getByText("Watchdog")).toBeInTheDocument();
+    expect(screen.getByText("Watchthat")).toBeInTheDocument();
   });
 
   it("renders How it works link pointing to #how", () => {
