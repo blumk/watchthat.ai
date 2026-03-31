@@ -31,6 +31,8 @@ pnpm dev        # http://localhost:3000
 | `pnpm start` | Start production server |
 
 > `pnpm build` runs `jest --ci` first via `prebuild`. A failing test blocks the build.
+>
+> **Note for CI/CD:** Both `prebuild` and `test:ci` explicitly set `NODE_ENV=test`. This is required because Vercel (and most CI environments) set `NODE_ENV=production` before the build step, which causes React to load its production bundle — a bundle that doesn't support `act()` and will fail all RTL tests.
 
 ## Testing (TDD)
 
@@ -64,7 +66,7 @@ watchdog/
 │   └── Footer.tsx        # Footer
 ├── __tests__/            # Component tests (Jest + RTL)
 ├── __mocks__/            # Jest module mocks
-├── jest.config.ts
+├── jest.config.js
 ├── jest.setup.ts
 ├── tailwind.config.ts
 ├── next.config.ts
