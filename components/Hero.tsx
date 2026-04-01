@@ -2,8 +2,13 @@
 
 import { useState } from "react";
 
-export default function Hero() {
+interface Props {
+  onAdd?: (url: string) => void;
+}
+
+export default function Hero({ onAdd }: Props) {
   const [focused, setFocused] = useState(false);
+  const [value, setValue] = useState("");
 
   return (
     <section className="text-center px-6 pt-20 pb-12 max-w-[700px] mx-auto">
@@ -60,16 +65,30 @@ export default function Hero() {
           <input
             type="text"
             placeholder="https://example.com"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && value.trim()) {
+                onAdd?.(value.trim());
+                setValue("");
+              }
+            }}
             className="flex-1 bg-transparent border-none outline-none text-[15px] font-mono text-[var(--t1)] placeholder-[var(--t3)] py-3 min-w-0"
             aria-label="Website URL to watch"
           />
 
           <button
-            className="shrink-0 px-6 py-3 rounded-xl border-none bg-[var(--blue)] text-white text-sm font-bold cursor-pointer transition-all duration-200 hover:brightness-110 hover:-translate-y-px whitespace-nowrap"
-            onClick={() => {}}
+            className="shrink-0 px-6 py-3 rounded-xl border-none bg-[var(--blue)] text-white text-sm font-bold cursor-pointer transition-all duration-200 hover:brightness-110 hover:-translate-y-px whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={() => {
+              if (value.trim()) {
+                onAdd?.(value.trim());
+                setValue("");
+              }
+            }}
             type="button"
+            disabled={!value.trim()}
           >
             Watch
           </button>
