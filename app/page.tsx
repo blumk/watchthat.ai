@@ -8,13 +8,15 @@ import HowItWorks from "@/components/HowItWorks";
 import Footer from "@/components/Footer";
 import WatchedSites from "@/components/WatchedSites";
 import { getSites, addSite } from "@/lib/storage";
+import { EXAMPLE_SITE } from "@/lib/example-site";
 import type { WatchedSite } from "@/lib/storage";
 
 export default function Home() {
-  const [sites, setSites] = useState<WatchedSite[]>([]);
+  const [sites, setSites] = useState<WatchedSite[]>([EXAMPLE_SITE]);
 
   useEffect(() => {
-    setSites(getSites());
+    const stored = getSites();
+    setSites([EXAMPLE_SITE, ...stored]);
   }, []);
 
   function handleAdd(url: string) {
@@ -29,6 +31,7 @@ export default function Home() {
   }
 
   function handleRemove(id: string) {
+    if (id === EXAMPLE_SITE.id) return;
     setSites((prev) => prev.filter((s) => s.id !== id));
   }
 

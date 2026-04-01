@@ -24,9 +24,16 @@ export async function POST(request: Request) {
     const firecrawl = new FirecrawlApp({
       apiKey: process.env.FIRECRAWL_API_KEY ?? "",
     });
-    const result = await firecrawl.scrape(url, { formats: ["markdown"] });
+    const result = await firecrawl.scrape(url, {
+      formats: ["markdown", "html", "rawHtml", "screenshot"],
+    });
     console.log("[scrape]", url, result.markdown?.slice(0, 200));
-    return NextResponse.json({ markdown: result.markdown ?? "" });
+    return NextResponse.json({
+      markdown: result.markdown ?? "",
+      html: result.html ?? "",
+      rawHtml: result.rawHtml ?? "",
+      screenshot: result.screenshot ?? null,
+    });
   } catch (err) {
     console.error("[scrape] error", url, err);
     return NextResponse.json(
