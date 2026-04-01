@@ -16,6 +16,10 @@ const makeSite = (overrides: Partial<WatchedSite> = {}): WatchedSite => ({
   lastHtml: null,
   lastRawHtml: null,
   lastScreenshot: null,
+  watchTarget: null,
+  lastExtractedValue: null,
+  lastExtractedHash: null,
+  changeDescription: null,
   changed: false,
   error: null,
   ...overrides,
@@ -83,6 +87,39 @@ describe("WatchedSites", () => {
     expect(screen.getByText("page text here")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /hide preview/i }));
     expect(screen.queryByText("page text here")).not.toBeInTheDocument();
+  });
+
+  it("shows watch target edit button", () => {
+    render(<WatchedSites sites={[makeSite()]} onUpdate={jest.fn()} onRemove={jest.fn()} />);
+    expect(screen.getByRole("button", { name: /edit watch target/i })).toBeInTheDocument();
+  });
+
+  it("shows watch target input when edit button is clicked", () => {
+    render(<WatchedSites sites={[makeSite()]} onUpdate={jest.fn()} onRemove={jest.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /edit watch target/i }));
+    expect(screen.getByPlaceholderText(/Pro plan price/i)).toBeInTheDocument();
+  });
+
+  it("displays extracted value when watchTarget and lastExtractedValue are set", () => {
+    render(
+      <WatchedSites
+        sites={[makeSite({ watchTarget: "CEO name", lastExtractedValue: "Jane Doe" })]}
+        onUpdate={jest.fn()}
+        onRemove={jest.fn()}
+      />
+    );
+    expect(screen.getByText("Jane Doe")).toBeInTheDocument();
+  });
+
+  it("shows change description when status is changed", () => {
+    render(
+      <WatchedSites
+        sites={[makeSite({ changed: true, changeDescription: "Price rose from $99 to $149." })]}
+        onUpdate={jest.fn()}
+        onRemove={jest.fn()}
+      />
+    );
+    expect(screen.getByText("Price rose from $99 to $149.")).toBeInTheDocument();
   });
 
   it("calls /api/scrape and calls onUpdate when Fetch is clicked", async () => {
