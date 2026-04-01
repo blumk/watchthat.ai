@@ -21,22 +21,13 @@ describe("DogLogo", () => {
     expect(svg).toHaveAttribute("height", "40");
   });
 
-  it("renders tail wag path when alert is true", () => {
+  it("renders alert dot when alert is true", () => {
     const { container } = render(<DogLogo alert={true} />);
-    // The tail path is only present in alert state
-    const paths = container.querySelectorAll("path");
-    const tailPath = Array.from(paths).find((p) =>
-      p.getAttribute("d")?.startsWith("M46 38")
-    );
-    expect(tailPath).toBeInTheDocument();
+    expect(container.querySelector("[data-testid='alert-dot']")).toBeInTheDocument();
   });
 
-  it("does not render tail wag path when alert is false", () => {
+  it("does not render alert dot when alert is false", () => {
     const { container } = render(<DogLogo alert={false} />);
-    const paths = container.querySelectorAll("path");
-    const tailPath = Array.from(paths).find((p) =>
-      p.getAttribute("d")?.startsWith("M46 38")
-    );
-    expect(tailPath).toBeUndefined();
+    expect(container.querySelector("[data-testid='alert-dot']")).not.toBeInTheDocument();
   });
 });

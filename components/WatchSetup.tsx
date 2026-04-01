@@ -105,6 +105,10 @@ export default function WatchSetup({ url, onComplete, onCancel }: Props) {
       pushMsg({ role: "bot", text: `Let me check out ${url}…` });
       setIsTyping(true);
 
+      const slowTimer = setTimeout(() => {
+        if (!cancelled) pushMsg({ role: "bot", text: "Hang tight… some websites take a bit longer to load." });
+      }, 5000);
+
       let markdown = "";
       let screenshot: string | null = null;
       try {
@@ -118,6 +122,8 @@ export default function WatchSetup({ url, onComplete, onCancel }: Props) {
         screenshot = data.screenshot ?? null;
       } catch {
         // proceed with empty markdown
+      } finally {
+        clearTimeout(slowTimer);
       }
 
       if (!cancelled) setScrapeData({ markdown, screenshot });
