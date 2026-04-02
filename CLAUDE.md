@@ -28,6 +28,11 @@ It maps one-to-one with the test suite — every behaviour listed there should h
 - After adding or removing tests
 - After a push — re-read the relevant sections and remove anything stale, add anything missing
 
+## After every push
+
+1. Start the dev server: `pnpm dev`
+2. Verify it loads: `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000` — must return `200`
+
 **How to update it:**
 - Edit the relevant section(s) in place — don't append to the bottom
 - Reference the test file in `[square brackets]` next to each requirement
