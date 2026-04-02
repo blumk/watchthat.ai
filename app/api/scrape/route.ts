@@ -33,6 +33,7 @@ export async function POST(request: Request) {
     const result = await Promise.race([
       firecrawl.scrape(url, {
         formats: ["markdown", "html", "rawHtml"],
+        // mobile: true,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         actions: [{ type: "screenshot" as const, fullPage: true }] as any,
       }),
