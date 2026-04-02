@@ -4,7 +4,7 @@ import Nav from "@/components/Nav";
 describe("Nav", () => {
   it("renders the Watchthat brand name", () => {
     render(<Nav />);
-    expect(screen.getByText("Watchthat")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /watchthat/i })).toBeInTheDocument();
   });
 
   it("renders How it works link pointing to #how", () => {
