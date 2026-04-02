@@ -64,7 +64,6 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   const [editingTarget, setEditingTarget] = useState<Record<string, string>>({});
   const [showTargetInput, setShowTargetInput] = useState<Set<string>>(new Set());
   const [selectedEntry, setSelectedEntry] = useState<Record<string, number>>({});
-  const [expandedDiff, setExpandedDiff] = useState<Set<string>>(new Set());
   const autoFetched = useRef<Set<string>>(new Set());
 
   // Auto-fetch any site that has never been checked
@@ -393,14 +392,14 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                     ✦
                   </button>
 
-                  {/* Preview toggle */}
+                  {/* Preview toggle — chevron icon */}
                   {hasContent && (
                     <button
                       aria-label={isExpanded ? "Hide preview" : "Show preview"}
                       onClick={() => toggleExpanded(site.id)}
-                      className="shrink-0 px-3 py-1.5 rounded-lg border border-[var(--bdr)] bg-[var(--bg3)] text-xs text-[var(--t2)] font-semibold cursor-pointer hover:text-[var(--t1)] transition-colors"
+                      className="shrink-0 text-[var(--t3)] hover:text-[var(--t1)] transition-colors text-base leading-none cursor-pointer bg-transparent border-none"
                     >
-                      {isExpanded ? "Hide" : "Preview"}
+                      {isExpanded ? "▴" : "▾"}
                     </button>
                   )}
 
@@ -414,15 +413,6 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                   >
                     ↻
                   </button>
-
-                  {/* Remove button */}
-                  <button
-                    aria-label="Remove"
-                    onClick={() => handleRemove(site.id)}
-                    className="shrink-0 text-[var(--t3)] hover:text-[var(--red)] transition-colors text-lg leading-none cursor-pointer bg-transparent border-none"
-                  >
-                    ×
-                  </button>
                 </div>
               </div>
 
@@ -433,7 +423,6 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                   <div className="flex-1 min-w-0 overflow-y-auto max-h-[260px]">
                     {histEntries.map((entry, idx) => {
                       const isSelected = idx === histIdx;
-                      const diffOpen = expandedDiff.has(entry.id);
                       const entryColor =
                         entry.classification === "major"
                           ? "var(--red)"
@@ -449,61 +438,27 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                           }`}
                         >
                           {/* Row: badge · description · timestamp */}
-                          <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex items-start gap-2 min-w-0">
                             <span
                               className="shrink-0 w-1.5 h-1.5 rounded-full"
                               style={{ background: entryColor }}
                             />
-                            <span className="text-xs text-[var(--t2)] flex-1 truncate leading-snug">
+                            <span className="text-xs text-[var(--t2)] flex-1 leading-snug">
                               {entry.description}
                             </span>
-                            <span className="shrink-0 text-[10px] font-mono text-[var(--t3)] ml-2">
-                              {new Date(entry.timestamp).toLocaleString(undefined, {
-                                month: "short", day: "numeric",
-                                hour: "2-digit", minute: "2-digit",
-                              })}
-                            </span>
+                            <div className="shrink-0 ml-2 text-right">
+                              <div className="text-[10px] font-mono text-[var(--t3)]">
+                                {timeAgo(entry.timestamp)}
+                              </div>
+                              <div className="text-[9px] font-mono text-[var(--t3)] opacity-50">
+                                {new Date(entry.timestamp).toLocaleString(undefined, {
+                                  month: "short", day: "numeric",
+                                  hour: "2-digit", minute: "2-digit",
+                                })}
+                              </div>
+                            </div>
                           </div>
 
-                          {/* Diff toggle — only on the selected row when values exist */}
-                          {isSelected && (entry.oldValue || entry.newValue) && (
-                            <div className="mt-2">
-                              <button
-                                aria-label={diffOpen ? "Hide diff" : "Show diff"}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setExpandedDiff((prev) => {
-                                    const next = new Set(prev);
-                                    diffOpen ? next.delete(entry.id) : next.add(entry.id);
-                                    return next;
-                                  });
-                                }}
-                                className="text-[10px] font-mono text-[var(--t3)] hover:text-[var(--t2)] cursor-pointer bg-transparent border-none leading-none transition-colors"
-                              >
-                                {diffOpen ? "▴ diff" : "▾ diff"}
-                              </button>
-                              {diffOpen && (
-                                <div className="mt-1 flex flex-col gap-0.5">
-                                  {entry.oldValue && (
-                                    <div className="flex gap-2 items-baseline min-w-0">
-                                      <span className="shrink-0 text-[10px] font-mono text-[var(--t3)]">was</span>
-                                      <span className="text-[10px] font-mono text-[var(--red)] truncate">
-                                        {entry.oldValue.length > 100 ? entry.oldValue.slice(0, 100) + "…" : entry.oldValue}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {entry.newValue && (
-                                    <div className="flex gap-2 items-baseline min-w-0">
-                                      <span className="shrink-0 text-[10px] font-mono text-[var(--t3)]">now</span>
-                                      <span className="text-[10px] font-mono text-[var(--green)] truncate">
-                                        {entry.newValue.length > 100 ? entry.newValue.slice(0, 100) + "…" : entry.newValue}
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          )}
                         </div>
                       );
                     })}
@@ -624,6 +579,17 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                         {rawHtmlCache[site.id] ?? "Loading…"}
                       </pre>
                     )}
+                  </div>
+
+                  {/* Remove — only visible when expanded */}
+                  <div className="px-4 pb-3 flex justify-end">
+                    <button
+                      aria-label="Remove"
+                      onClick={() => handleRemove(site.id)}
+                      className="text-xs font-mono text-[var(--t3)] hover:text-[var(--red)] transition-colors cursor-pointer bg-transparent border-none"
+                    >
+                      Remove site
+                    </button>
                   </div>
                 </div>
               )}
