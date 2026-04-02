@@ -8,7 +8,7 @@ import type { WatchedSite, ChangeEntry } from "@/lib/storage";
 
 function makeEntry(
   description: string,
-  classification: "major" | "minor" | "quiet",
+  classification: "major" | "minor" | "quiet" | "error",
   oldValue?: string,
   newValue?: string,
   screenshot?: string | null
