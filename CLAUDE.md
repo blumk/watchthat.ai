@@ -18,22 +18,41 @@ npx jest --testPathPattern="ComponentName"
 
 Note: `pnpm test:ci -- --testPathPattern=X` doesn't work due to script arg forwarding; use `npx jest` directly for filtered runs.
 
+## Requirements doc
+
+`REQUIREMENTS.md` is the living plain-English specification of what the app currently does.
+It maps one-to-one with the test suite — every behaviour listed there should have a covering test, and every non-trivial test should appear there.
+
+**When to update it:**
+- After adding, changing, or removing any user-visible behaviour
+- After adding or removing tests
+- After a push — re-read the relevant sections and remove anything stale, add anything missing
+
+**How to update it:**
+- Edit the relevant section(s) in place — don't append to the bottom
+- Reference the test file in `[square brackets]` next to each requirement
+- If a requirement has no test yet, mark it `[untested]` as a prompt to add one
+
+Do not rewrite the whole doc for minor changes — surgical edits only.
+
 ## Architecture
 
-Next.js 15 App Router with manual change monitoring. `page.tsx` is a client component that owns the `WatchedSite[]` state and passes callbacks down to `Hero` (adds sites) and `WatchedSites` (fetches/removes).
+Next.js 15 App Router with Turbopack. `page.tsx` is a client component that owns `WatchedSite[]` state and passes callbacks down to `Hero` (adds sites) and `WatchedSites` (fetches/removes/updates).
 
-**Fetching:** `POST /api/scrape` proxies requests to Firecrawl.dev and returns `{ markdown }`. The API key is server-side only (`FIRECRAWL_API_KEY` in `.env.local`). The Firecrawl SDK v4 uses `.scrape()` (not `.scrapeUrl()`), throws on error, and returns `Document` directly.
+**Fetching:** `POST /api/scrape` proxies to Firecrawl.dev and returns `{ markdown, html, rawHtml, screenshot }`. API key is server-side only. Firecrawl SDK v4 uses `.scrape()`, throws on error, returns `Document` directly. Full-page screenshot via `actions: [{ type: "screenshot", fullPage: true }]`; result at `result.actions.screenshots[0]`.
 
-**Key constraint:** `pnpm build` runs `jest --ci` via `prebuild`. Failing tests block the build. Both scripts explicitly set `NODE_ENV=test` to avoid React production bundle issues with RTL's `act()`.
+**Key constraint:** `pnpm build` runs `jest --ci` via `prebuild`. Failing tests block the build. Both scripts explicitly set `NODE_ENV=test` to avoid React production bundle issues with RTL's `act()`. A pre-push git hook runs lint → test:ci → build before every push.
 
-**Component model:** Most components are Server Components. Client components: `Hero.tsx` (URL input + state), `WatchedSites.tsx` (fetch/remove interactions), `page.tsx` (shared state owner). New components should default to server unless they need interactivity.
+**Component model:** Most components are Server Components. Client components: `Hero.tsx`, `WatchedSites.tsx`, `page.tsx`. New components default to server unless they need interactivity.
 
-**State & storage:** `lib/storage.ts` wraps localStorage (key: `watchdog-sites-v1`). `lib/hash.ts` provides djb2 hashing. Site status (`sniffing | quiet | changed | error`) is derived at runtime — only `changed: boolean` is persisted to distinguish a detected change from a baseline.
+**State & storage:** `lib/storage.ts` wraps IndexedDB via the `idb` library. All functions are async. Large fields (`lastScreenshot`, `lastHtml`, `lastRawHtml`, `ChangeEntry.screenshot`) are stripped before writing — kept in React state for the session only. Site status (`sniffing | quiet | changed | error`) is derived at runtime, never persisted. Legacy `watchdog-sites-v1` localStorage data is auto-migrated on first open.
 
-**Testing:** TDD enforced. Tests live in `__tests__/`. API route tests need `/** @jest-environment node */` at the top (jsdom doesn't have `Request`). When mocking Firecrawl in tests, use `mockImplementation` in `beforeEach` (not a module-level const) because the instance is created per-request.
+**Intelligence:** `POST /api/extract` (Claude Haiku) extracts a watch-target value from markdown. `POST /api/describe-change` (Claude Haiku) writes a plain-English change description. Both strip markdown code fences before JSON parsing the response.
 
-**Styling:** CSS custom properties (`--bg`, `--bg2`, `--bg3`, `--t1`–`--t3`, `--blue`, `--blue-g`, `--red`, `--green`) defined in `globals.css`. Dark mode is the default; light mode applies via `prefers-color-scheme`.
+**Testing:** TDD enforced. Tests live in `__tests__/`. API route tests need `/** @jest-environment node */` at the top. `fake-indexeddb/auto` and a `structuredClone` polyfill are configured in `jest.setup.ts`. Storage tests call `_clearAll()` in `beforeEach` to isolate state. When mocking Firecrawl, use `mockImplementation` in `beforeEach` (not module-level) because the instance is created per-request.
+
+**Styling:** CSS custom properties (`--bg`, `--bg2`, `--bg3`, `--t1`–`--t3`, `--blue`, `--blue-g`, `--red`, `--green`) defined in `globals.css`. Dark mode is the default; light mode via `prefers-color-scheme`.
 
 ## Roadmap Context
 
-See `watchdog-prd-trd.md` for the full spec. The app currently implements V1 manual monitoring (paste URL → snapshot → re-check → see changed/quiet). V2.0 adds backend, automated polling, and auth. Design decisions should account for this trajectory but not over-engineer prematurely.
+See `watchdog-prd-trd.md` for the full spec and implementation findings. V2.0 adds backend, automated polling, and auth. Design decisions should account for this trajectory but not over-engineer prematurely.

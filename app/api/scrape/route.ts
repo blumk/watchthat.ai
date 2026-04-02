@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import FirecrawlApp from "@mendable/firecrawl-js";
 
+const SCRAPE_TIMEOUT_MS = 300_000; // 5 minutes — Vercel free tier will still hard-kill at 10s in production
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const { url } = body as { url?: string };
@@ -24,11 +26,18 @@ export async function POST(request: Request) {
     const firecrawl = new FirecrawlApp({
       apiKey: process.env.FIRECRAWL_API_KEY ?? "",
     });
-    const result = await firecrawl.scrape(url, {
-      formats: ["markdown", "html", "rawHtml"],
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      actions: [{ type: "screenshot" as const, fullPage: true }] as any,
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      const id = setTimeout(() => reject(new Error("timeout")), SCRAPE_TIMEOUT_MS);
+      id.unref(); // don't keep the Node event loop alive once the race resolves
     });
+    const result = await Promise.race([
+      firecrawl.scrape(url, {
+        formats: ["markdown", "html", "rawHtml"],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        actions: [{ type: "screenshot" as const, fullPage: true }] as any,
+      }),
+      timeoutPromise,
+    ]);
     const actions = result.actions as { screenshots?: string[] } | undefined;
     const screenshot = actions?.screenshots?.[0] ?? null;
     console.log("[scrape]", url, result.markdown?.slice(0, 200));
@@ -53,7 +62,9 @@ export async function POST(request: Request) {
         : undefined;
     console.error("[scrape] error", url, { code, status, detail });
     const message =
-      code === "BAD_REQUEST"
+      err instanceof Error && err.message === "timeout"
+        ? `scrape timed out after ${SCRAPE_TIMEOUT_MS / 1000}s — try again or use a simpler URL`
+        : code === "BAD_REQUEST"
         ? `Firecrawl rejected this URL (${detail ?? "no details"})`
         : "failed to scrape url";
     return NextResponse.json({ error: message }, { status: 500 });

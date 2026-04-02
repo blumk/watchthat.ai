@@ -4,8 +4,8 @@
 
 | | |
 |---|---|
-| Version | 1.0 |
-| Date | March 31, 2026 |
+| Version | 1.1 |
+| Date | April 2, 2026 |
 | Status | Draft |
 | Classification | Internal |
 
@@ -42,7 +42,7 @@ Watchdog fills the gap: a fast, focused, zero-configuration tool. Paste a URL, g
 
 ### 4. Product Vision
 
-**Tagline:** Know when websites change.
+**Tagline:** We monitor [rotating: websites | job postings | ticket drops | …] so you don't have to.
 
 **Core principles:**
 
@@ -59,14 +59,17 @@ Watchdog fills the gap: a fast, focused, zero-configuration tool. Paste a URL, g
 |---------|-------------|----------|
 | URL input (hero search bar) | Prominent search bar in hero section. User pastes a URL and clicks "Watch." Auto-prefixes `https://` if missing. | P0 |
 | Automatic first snapshot | On add, Watchdog immediately fetches the page, extracts text content, generates a hash, and stores the baseline. | P0 |
-| Manual re-check | Per-site "Fetch" button and global "Sniff All" to re-check on demand. | P0 |
-| Change detection | Compares new content hash to stored hash. If different, status becomes "Woof! Changed." | P0 |
-| Inline diff view | Expandable diff panel showing added/modified content with green "+" markers. Up to 10 changes shown, remainder summarized. | P0 |
-| Acknowledge alerts | User can dismiss a change alert, resetting the site to "Watching" state with the new content as the baseline. | P0 |
-| Persistent storage | Watched sites, content snapshots, and hashes persist across browser sessions via localStorage. | P0 |
-| Status system | Six states: New, Watching, Sniffing, All Quiet, Woof! Changed, Error. Each with distinct color and icon. | P0 |
-| Remove site | One-click removal from the watched list. | P1 |
-| Responsive design | Fully responsive from 320px mobile to desktop. Dark/light theme support. | P1 |
+| Manual re-check | Per-site "Fetch" (↻) button to re-check on demand. | P0 |
+| Change detection | Compares new content hash to stored hash. If different, status becomes "Changed" with a red timestamp. | P0 |
+| Semantic watch target | Per-site "watch target" field (e.g. "the Pro plan price"). Uses Claude Haiku to extract a specific value on each check and detect changes to that value only. | P0 |
+| Change history log | Every fetch appended as a `ChangeEntry` (description, classification: major/minor/quiet, timestamp, screenshot). Scrollable per-site history panel with screenshot viewer. | P0 |
+| Claude-generated descriptions | When a change is detected, Claude Haiku writes a one-sentence plain-English description (e.g. "The Pro plan price increased from $99 to $149.") | P0 |
+| Full-page screenshots | Firecrawl `actions` API captures a full-page screenshot on each fetch. Shown in the history panel. Not persisted across sessions (session memory only). | P0 |
+| Persistent storage | Site configs, hashes, and change history persist across sessions via IndexedDB. | P0 |
+| Status system | Four states: sniffing, quiet, changed, error. Status derived at runtime, never persisted. | P0 |
+| Remove site | Remove button shown at the bottom of an expanded card (or inline for error sites with no content). | P1 |
+| Demo mode | "Try with hellolingo.com →" button pre-loads an example site when no sites are watched. | P1 |
+| Responsive design | Fully responsive. Dark mode default; light mode via `prefers-color-scheme`. | P1 |
 
 #### 5.2 V2 (Planned)
 
@@ -123,11 +126,13 @@ The MVP is a single-page React application with no backend. All logic runs clien
 
 | Layer | Technology | Notes |
 |-------|-----------|-------|
-| Frontend | Next.js 15 (App Router, RSC) | Component-based, TDD enforced |
+| Frontend | Next.js 15 (App Router, RSC) with Turbopack | Component-based, TDD enforced |
 | Styling | Tailwind CSS + CSS variables | `prefers-color-scheme` for auto dark/light |
-| Storage | localStorage | JSON serialized. Key: `watchdog-sites-v1` |
-| Networking | Firecrawl.dev API via Next.js API route | Handles CORS, JS rendering, returns clean markdown |
-| Hashing | djb2 (client-side) | 32-bit hash of markdown content |
+| Storage | IndexedDB via `idb` | Async, no practical size limit. Session-only fields (screenshots, raw HTML) stripped before persisting. One-time migration from legacy `watchdog-sites-v1` localStorage key. |
+| Scraping | Firecrawl.dev API via Next.js API route (`/api/scrape`) | Handles CORS, JS rendering, returns markdown + HTML + full-page screenshot |
+| Intelligence | Anthropic Claude Haiku via `/api/extract` and `/api/describe-change` | Extracts watch-target values; generates plain-English change descriptions |
+| Hashing | djb2 (client-side) | 32-bit hash of markdown content or extracted value |
+| Quality gate | Pre-push hook: `tsc --noEmit` → `jest --ci` → `next build` | Blocks push on any failure |
 
 #### 8.2 Target Architecture (V2+)
 
@@ -146,19 +151,40 @@ The MVP is a single-page React application with no backend. All logic runs clien
 
 #### 9.1 Site Object (MVP)
 
-| Field | Type | Description |
-|-------|------|-------------|
-| id | string | Unique ID: `Date.now().toString(36)` + random chars |
-| url | string | Full URL with protocol. Auto-prefixed with `https://` if missing |
-| label | string | User-defined display name. Falls back to hostname |
-| lastChecked | number \| null | Unix timestamp (ms) of last fetch attempt |
-| lastHash | string \| null | djb2 hex hash of markdown content |
-| lastContent | string \| null | Full markdown content of last successful fetch |
-| error | string \| null | Error message from last failed fetch |
+| Field | Type | Persisted | Description |
+|-------|------|-----------|-------------|
+| id | string | ✓ | Unique ID: `Date.now().toString(36)` + random chars |
+| url | string | ✓ | Full URL with protocol. Auto-prefixed with `https://` if missing |
+| label | string | ✓ | Hostname derived from URL |
+| lastChecked | number \| null | ✓ | Unix timestamp (ms) of last fetch attempt |
+| lastHash | string \| null | ✓ | djb2 hex hash of full markdown (used when no watch target) |
+| lastContent | string \| null | ✓ | Full markdown of last successful fetch |
+| lastHtml | string \| null | ✗ | Rendered HTML — session-only, too large to persist |
+| lastRawHtml | string \| null | ✗ | Raw HTML — session-only, too large to persist |
+| lastScreenshot | string \| null | ✗ | Base64 full-page screenshot — session-only (can be several MB) |
+| watchTarget | string \| null | ✓ | Plain-English description of what to extract, e.g. "the Pro plan price" |
+| lastExtractedValue | string \| null | ✓ | Claude's extracted value, e.g. "$99/month" |
+| lastExtractedHash | string \| null | ✓ | djb2 hash of `lastExtractedValue` (change comparison key when watch target is set) |
+| changeDescription | string \| null | ✓ | Claude-generated description of the latest change |
+| changed | boolean | ✓ | Whether an unacknowledged change is present |
+| error | string \| null | ✓ | Error message from last failed fetch |
+| history | ChangeEntry[] | ✓ (partial) | Fetch log — descriptions/timestamps persisted; screenshots stripped |
 
-Status (`new | sniffing | quiet | changed | error`) is derived at runtime, not persisted.
+Status (`sniffing | quiet | changed | error`) is derived at runtime from persisted fields, never stored.
 
-#### 9.2 V2 Schema Extensions
+#### 9.2 ChangeEntry Object
+
+| Field | Type | Persisted | Description |
+|-------|------|-----------|-------------|
+| id | string | ✓ | `Date.now().toString(36)` + random |
+| timestamp | number | ✓ | Unix ms |
+| description | string | ✓ | Claude-generated or default ("Initial snapshot taken.", "No changes detected.") |
+| classification | `"major" \| "minor" \| "quiet"` | ✓ | Claude-assigned or default. `quiet` = no change / first fetch |
+| oldValue | string | ✓ | Previous extracted value (watch target mode only) |
+| newValue | string | ✓ | New extracted value (watch target mode only) |
+| screenshot | string \| null | ✗ | Base64 screenshot at time of fetch — session-only |
+
+#### 9.3 V2 Schema Extensions
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -194,7 +220,11 @@ For the MVP, hash comparison is sufficient (changed vs. not changed). A full dif
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/scrape` | Scrape a URL via Firecrawl. Body: `{ url: string }`. Returns `{ markdown: string }` |
+| POST | `/api/scrape` | Scrape URL via Firecrawl. Returns `{ markdown, html, rawHtml, screenshot }`. 300s timeout (Vercel free tier serverless limit). |
+| POST | `/api/extract` | Claude Haiku extraction. Body: `{ markdown, watchTarget }`. Returns `{ value }`. |
+| POST | `/api/describe-change` | Claude Haiku description. Body: `{ oldValue, newValue, watchTarget, url }`. Returns `{ description, classification }`. |
+
+**Scrape timeout notes:** Vercel free tier serverless functions allow up to 300s (5 minutes) — this is the configured timeout. The 10s limit applies to *Edge* functions, not Node.js serverless. Complex pages (e.g. CNN.com) regularly take 10–20s. Client parses Vercel infrastructure error codes (`FUNCTION_INVOCATION_TIMEOUT`, `FUNCTION_INVOCATION_FAILED`) for readable error messages when the body is HTML rather than JSON.
 
 #### 11.2 V2 REST API
 
@@ -225,10 +255,10 @@ For the MVP, hash comparison is sufficient (changed vs. not changed). A full dif
 | Metric | Target | Notes |
 |--------|--------|-------|
 | Initial page load (LCP) | <1.5s | Static Next.js page |
-| Time to first snapshot | <4s | Firecrawl fetch + hash |
+| Time to first snapshot | 5–20s | Firecrawl fetch (varies widely by page complexity; CNN ~15s, simple pages ~3s) |
 | Concurrent site checks | ≥20 sites | Limited by browser connection pool |
-| Storage per site | <500KB | Depends on page markdown length |
-| Total storage limit | <5MB | localStorage constraint |
+| Storage per site | <100KB | Markdown + metadata only. HTML/screenshots not persisted. |
+| Total storage limit | No hard limit | IndexedDB uses disk quota (~60% of free disk, browser-managed) |
 
 ### 14. Error Handling
 
@@ -237,9 +267,13 @@ For the MVP, hash comparison is sufficient (changed vs. not changed). A full dif
 | CORS blocked | Handled by Firecrawl | N/A |
 | HTTP 4xx/5xx | Shows HTTP status in error message | Retry with exponential backoff. Auto-pause after 5 consecutive failures |
 | Network offline | Generic error shown | Detect `navigator.onLine`, queue checks for when connectivity returns |
-| Firecrawl API down | Fetch fails | Fallback strategy; cache last known content |
-| Content too large | May exceed storage limit | Truncate to 500KB. Warn user |
+| Firecrawl API down | Fetch fails with error card | Fallback strategy; cache last known content |
+| Vercel function timeout | Client parses `FUNCTION_INVOCATION_TIMEOUT` from HTML body; shows readable message | Upgrade to Vercel Pro for `maxDuration = 25` config |
+| Vercel function crash | Client parses `FUNCTION_INVOCATION_FAILED` from HTML body | Alert + retry |
+| Scrape response too large | IndexedDB handles arbitrary size; screenshots/HTML not persisted anyway | N/A |
+| localStorage quota exceeded | **Fixed by migrating to IndexedDB.** Root cause: base64 full-page screenshots for complex pages (e.g. CNN) easily exceeded the 5MB localStorage cap, causing `QuotaExceededError` to bubble up as an opaque "Error" status on the site card. | N/A — resolved |
 | Invalid URL | Fetch fails | Client-side URL validation before adding |
+| Claude returns JSON wrapped in markdown fences | `describe-change` strips ` ```json … ``` ` before `JSON.parse` | N/A — resolved |
 
 ### 15. Testing Strategy
 
@@ -267,8 +301,10 @@ For the MVP, hash comparison is sufficient (changed vs. not changed). A full dif
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
 | Firecrawl API goes down or rate limits | Medium | High | Cache last known content. Add error state with retry |
-| False positives from dynamic content (timestamps, ads) | High | Medium | CSS selector targeting in V2. Firecrawl's markdown extraction already filters much of this |
-| localStorage limits exceeded | Low | Medium | Monitor storage usage. Implement LRU eviction for content |
+| False positives from dynamic content (timestamps, ads) | High | Medium | Watch target field mitigates this for specific values. Full-page hash mode still prone to noise. |
+| Scrape timeout on complex pages | High | Medium | 300s server timeout. Client shows readable timeout message. Users can retry or simplify URL. |
+| Claude API unavailable | Low | Medium | Both API routes fall back to generic messages; scrape still completes |
+| IndexedDB quota exceeded | Very Low | Low | Browser-managed quota (~60% of free disk). Practically unlimited for this use case. |
 | JS-rendered pages return empty content | Low | High | Firecrawl handles JS rendering natively |
 | Legal/ToS concerns with scraping | Low | High | Respect robots.txt. Add rate limiting. Provide opt-out for site owners |
 
@@ -283,6 +319,60 @@ For the MVP, hash comparison is sufficient (changed vs. not changed). A full dif
 | V2.1 — Precision | Week 9–10 | CSS selector targeting, screenshot diffs, diff view |
 | V2.2 — Organization | Week 11–12 | Tags/folders, bulk import, change history timeline, public share links |
 | V3.0 — Scale | Month 4+ | Multi-tenant, team workspaces, API access, Slack/Discord integrations |
+
+### 18. Implementation Findings (April 2026)
+
+Decisions and discoveries made during the V1 build that aren't obvious from the code.
+
+#### 18.1 Why we switched from localStorage to IndexedDB
+
+Root cause: `localStorage.setItem` throws a synchronous `QuotaExceededError` when the total payload exceeds 5MB. This error bubbled up through `updateSite` → `fetchSite` and was caught by the generic error handler, setting `error` state on the site card — so the user saw "Error" even though the scrape succeeded.
+
+The trigger was full-page screenshots. Firecrawl's `actions` API returns a base64-encoded PNG of the full page. For a complex page like CNN.com, this is 2–5MB. A single fetch for one site could push the total localStorage over the limit.
+
+**Fix:** Migrated to IndexedDB via the `idb` library (v8). Key properties:
+- No practical size limit (browser-managed disk quota)
+- Async API — doesn't block the main thread
+- Large fields (`lastScreenshot`, `lastHtml`, `lastRawHtml`, `ChangeEntry.screenshot`) are stripped before writing — they are kept in React state for the current session only. The user can re-fetch to restore them.
+- One-time migration: on first `openDB`, the legacy `watchdog-sites-v1` key is read from localStorage, imported into IndexedDB, and the localStorage key is deleted.
+
+**Test setup:** `fake-indexeddb/auto` added to `jest.setup.ts`. `fake-indexeddb` v6 requires `structuredClone`, which jsdom doesn't expose even on Node 17+. A JSON-based polyfill is added to the setup file.
+
+#### 18.2 Why we use `tsc --noEmit` for lint instead of ESLint
+
+ESLint 10 (released after `eslint-config-next` v16 was written) broke the config: `FlatCompat` caused circular JSON serialization, and `eslint-plugin-react`'s `getFilename` method no longer existed. Debugging the ESLint config was not worth the time for a project this size.
+
+TypeScript's own type-checker (`tsc --noEmit`) catches the same class of errors that matter here (type mismatches, missing imports, unused variables when `noUnusedLocals` is set) and runs faster. This is the configured `pnpm lint` command.
+
+#### 18.3 Pre-push quality gate
+
+A pre-push git hook at `.git/hooks/pre-push` runs `pnpm lint` → `pnpm test:ci` → `pnpm build` in sequence before any push reaches the remote. This catches regressions before they land in production. The `prebuild` script in `package.json` also runs `jest --ci`, so the build itself is gated on tests passing — a second layer of protection.
+
+Both scripts explicitly set `NODE_ENV=test`. This was required to avoid React's production bundle optimizations conflicting with `@testing-library/react`'s `act()` wrapper.
+
+#### 18.4 Firecrawl screenshot API
+
+Firecrawl v4 does not support `screenshot@fullPage` as a format string (it returns `BAD_REQUEST`). Full-page screenshots require the `actions` API:
+
+```typescript
+actions: [{ type: "screenshot", fullPage: true }]
+```
+
+The result is at `result.actions.screenshots[0]`, not in the main result object. The `actions` field is typed as `unknown` in the SDK and must be cast.
+
+#### 18.5 Vercel serverless vs Edge function timeouts
+
+The 10-second timeout applies to **Edge functions**, not Node.js serverless functions. Vercel free tier serverless functions allow up to **300 seconds**. The `maxDuration` export in route files only raises the limit on Pro+; on free tier the default is already 300s for serverless. Complex pages regularly take 10–20 seconds to scrape; this is within the free tier limit.
+
+When Vercel does kill a function, the response body is HTML (not JSON), so `response.json()` throws. The client now reads the body as text first, then checks for Vercel error strings (`FUNCTION_INVOCATION_TIMEOUT`, `FUNCTION_INVOCATION_FAILED`) before falling back to `JSON.parse`.
+
+#### 18.6 Claude response format
+
+Claude Haiku sometimes wraps JSON responses in markdown code fences (` ```json … ``` `), even when instructed not to. The `describe-change` route strips these before `JSON.parse` with:
+
+```typescript
+const text = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+```
 
 ---
 
