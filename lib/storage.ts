@@ -4,7 +4,7 @@ export interface ChangeEntry {
   id: string;
   timestamp: number;
   description: string;
-  classification: "major" | "minor" | "quiet";
+  classification: "major" | "minor" | "quiet" | "error";
   oldValue?: string;
   newValue?: string;
   screenshot?: string | null;
@@ -68,6 +68,8 @@ export async function getSites(): Promise<WatchedSite[]> {
 
 export async function addSite(rawUrl: string): Promise<WatchedSite> {
   const url = rawUrl.match(/^https?:\/\//) ? rawUrl : `https://${rawUrl}`;
+  const existing = (await getSites()).find((s) => s.url === url);
+  if (existing) return existing;
   const label = new URL(url).hostname;
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const site: WatchedSite = {

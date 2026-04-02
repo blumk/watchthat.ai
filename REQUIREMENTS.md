@@ -74,6 +74,7 @@ this doc is the human-readable summary.
 - First fetch stores a baseline and logs a quiet "Initial snapshot taken." entry
 - Subsequent fetches with no change log a quiet "No changes detected." entry
 - Subsequent fetches with a change call `/api/describe-change` and log a major/minor entry
+- Failed fetches log an `"error"` classified entry with the error message as description; the `error` field is also set on the site [`WatchedSites.test.tsx`]
 
 ---
 
@@ -81,6 +82,7 @@ this doc is the human-readable summary.
 
 - `getSites()` returns `[]` when the store is empty [`storage.test.ts`]
 - `addSite(url)` persists a new site and returns it [`storage.test.ts`]
+- `addSite` with a URL already in the store returns the existing site and does not create a duplicate [`storage.test.ts`]
 - `addSite` auto-prefixes `https://` when the protocol is missing [`storage.test.ts`]
 - `addSite` sets `label` to the URL hostname [`storage.test.ts`]
 - `addSite` initialises `lastHash`, `error` to `null`; `changed` to `false`; `history` to `[]` [`storage.test.ts`]
