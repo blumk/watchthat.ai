@@ -7,7 +7,7 @@ import FeatureCards from "@/components/FeatureCards";
 import HowItWorks from "@/components/HowItWorks";
 import Footer from "@/components/Footer";
 import WatchedSites from "@/components/WatchedSites";
-import { getSites, addSite } from "@/lib/storage";
+import { getSites, addSite, removeSite } from "@/lib/storage";
 import { EXAMPLE_SITE } from "@/lib/example-site";
 import type { WatchedSite } from "@/lib/storage";
 
