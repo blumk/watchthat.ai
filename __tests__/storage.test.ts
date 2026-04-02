@@ -65,10 +65,9 @@ describe("updateSite", () => {
 
 describe("removeSite", () => {
   it("removes the site with the given id", async () => {
-    await addSite("https://example.com");
+    const first = await addSite("https://example.com");
     await addSite("https://other.com");
-    const id = (await getSites())[0].id;
-    await removeSite(id);
+    await removeSite(first.id);
     const remaining = await getSites();
     expect(remaining).toHaveLength(1);
     expect(remaining[0].url).toBe("https://other.com");
