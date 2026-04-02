@@ -291,4 +291,5 @@ has all kinds of whole-body health benefits.</p></div><div class="overflow-hidde
   changeDescription: null,
   changed: false,
   error: null,
+  history: [],
 };

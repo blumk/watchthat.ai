@@ -25,21 +25,37 @@ export async function POST(request: Request) {
       apiKey: process.env.FIRECRAWL_API_KEY ?? "",
     });
     const result = await firecrawl.scrape(url, {
+      formats: ["markdown", "html", "rawHtml"],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      formats: ["markdown", "html", "rawHtml", "screenshot@fullPage"] as any,
+      actions: [{ type: "screenshot" as const, fullPage: true }] as any,
     });
+    const actions = result.actions as { screenshots?: string[] } | undefined;
+    const screenshot = actions?.screenshots?.[0] ?? null;
     console.log("[scrape]", url, result.markdown?.slice(0, 200));
     return NextResponse.json({
       markdown: result.markdown ?? "",
       html: result.html ?? "",
       rawHtml: result.rawHtml ?? "",
-      screenshot: result.screenshot ?? null,
+      screenshot,
     });
   } catch (err) {
-    console.error("[scrape] error", url, err);
-    return NextResponse.json(
-      { error: "failed to scrape url" },
-      { status: 500 }
-    );
+    const detail =
+      err && typeof err === "object"
+        ? JSON.stringify((err as Record<string, unknown>).details ?? null)
+        : null;
+    const code =
+      err && typeof err === "object"
+        ? (err as Record<string, unknown>).code
+        : null;
+    const status =
+      err && typeof err === "object"
+        ? ((err as Record<string, unknown>).status as number | undefined)
+        : undefined;
+    console.error("[scrape] error", url, { code, status, detail });
+    const message =
+      code === "BAD_REQUEST"
+        ? `Firecrawl rejected this URL (${detail ?? "no details"})`
+        : "failed to scrape url";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

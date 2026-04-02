@@ -16,11 +16,12 @@ function makeRequest(body: unknown): Request {
   });
 }
 
+const SCREENSHOT_URL = "https://cdn.example.com/shot.png";
 const MOCK_RESULT = {
   markdown: "# Hello\n\nSome page content.",
   html: "<h1>Hello</h1>",
   rawHtml: "<!DOCTYPE html><h1>Hello</h1>",
-  screenshot: "https://cdn.example.com/shot.png",
+  actions: { screenshots: [SCREENSHOT_URL] },
 };
 
 beforeEach(() => {
@@ -40,7 +41,7 @@ describe("POST /api/scrape", () => {
     expect(body.markdown).toBe(MOCK_RESULT.markdown);
     expect(body.html).toBe(MOCK_RESULT.html);
     expect(body.rawHtml).toBe(MOCK_RESULT.rawHtml);
-    expect(body.screenshot).toBe(MOCK_RESULT.screenshot);
+    expect(body.screenshot).toBe(SCREENSHOT_URL);
   });
 
   it("returns 400 when url is missing", async () => {

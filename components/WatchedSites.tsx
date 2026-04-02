@@ -4,7 +4,25 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { hashString } from "@/lib/hash";
 import { updateSite, removeSite } from "@/lib/storage";
-import type { WatchedSite } from "@/lib/storage";
+import type { WatchedSite, ChangeEntry } from "@/lib/storage";
+
+function makeEntry(
+  description: string,
+  classification: "major" | "minor" | "quiet",
+  oldValue?: string,
+  newValue?: string,
+  screenshot?: string | null
+): ChangeEntry {
+  return {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    timestamp: Date.now(),
+    description,
+    classification,
+    ...(oldValue !== undefined ? { oldValue } : {}),
+    ...(newValue !== undefined ? { newValue } : {}),
+    ...(screenshot !== undefined ? { screenshot } : {}),
+  };
+}
 
 type SiteStatus = "sniffing" | "quiet" | "changed" | "error";
 type PreviewTab = "markdown" | "html" | "rawHtml" | "screenshot";
@@ -16,12 +34,21 @@ function deriveStatus(site: WatchedSite, sniffing: boolean): SiteStatus {
   return "quiet";
 }
 
-const STATUS_LABEL: Record<SiteStatus, string> = {
+const STATUS_LABEL: Record<Exclude<SiteStatus, "quiet" | "changed">, string> = {
   sniffing: "Sniffing…",
-  quiet: "All quiet",
-  changed: "Changed",
   error: "Error",
 };
+
+function timeAgo(ts: number | null): string {
+  if (ts === null) return "never";
+  const sec = Math.floor((Date.now() - ts) / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}min ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  return `${Math.floor(hr / 24)}d ago`;
+}
 
 interface Props {
   sites: WatchedSite[];
@@ -36,6 +63,8 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   const [rawHtmlCache, setRawHtmlCache] = useState<Record<string, string>>({});
   const [editingTarget, setEditingTarget] = useState<Record<string, string>>({});
   const [showTargetInput, setShowTargetInput] = useState<Set<string>>(new Set());
+  const [selectedEntry, setSelectedEntry] = useState<Record<string, number>>({});
+  const [expandedDiff, setExpandedDiff] = useState<Set<string>>(new Set());
   const autoFetched = useRef<Set<string>>(new Set());
 
   // Auto-fetch any site that has never been checked
@@ -66,8 +95,13 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: site.url }),
       });
-      if (!scrapeRes.ok) throw new Error(`HTTP ${scrapeRes.status}`);
-      const data = (await scrapeRes.json()) as {
+      const scrapeBody = await scrapeRes.json();
+      if (!scrapeRes.ok) {
+        throw new Error(
+          (scrapeBody as { error?: string }).error ?? `HTTP ${scrapeRes.status}`
+        );
+      }
+      const data = scrapeBody as {
         markdown: string;
         html: string;
         rawHtml: string;
@@ -103,7 +137,13 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
         patch.lastExtractedHash = newExtractedHash;
         patch.changed = changed;
 
-        if (changed && site.lastExtractedValue) {
+        if (site.lastExtractedHash === null) {
+          // First fetch — log baseline
+          patch.history = [
+            ...(site.history ?? []),
+            makeEntry("Initial snapshot taken.", "quiet", undefined, undefined, data.screenshot),
+          ];
+        } else if (changed && site.lastExtractedValue) {
           // 3. Describe the change
           const descRes = await fetch("/api/describe-change", {
             method: "POST",
@@ -115,19 +155,60 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
               url: site.url,
             }),
           });
-          const { description } = descRes.ok
-            ? ((await descRes.json()) as { description: string })
-            : { description: "" };
-          patch.changeDescription = description;
-        } else if (!changed) {
+          const descData = descRes.ok
+            ? ((await descRes.json()) as { description: string; classification: "major" | "minor" })
+            : { description: "The monitored value changed.", classification: "minor" as const };
+          patch.changeDescription = descData.description;
+          patch.history = [
+            ...(site.history ?? []),
+            makeEntry(descData.description, descData.classification, site.lastExtractedValue ?? undefined, value, data.screenshot),
+          ];
+        } else {
           patch.changeDescription = null;
+          patch.history = [
+            ...(site.history ?? []),
+            makeEntry("No changes detected.", "quiet", undefined, undefined, data.screenshot),
+          ];
         }
       } else {
         // Fallback: hash full markdown
         const newHash = hashString(data.markdown);
+        const contentChanged = site.lastHash !== null && newHash !== site.lastHash;
         patch.lastHash = newHash;
-        patch.changed = site.lastHash !== null && newHash !== site.lastHash;
+        patch.changed = contentChanged;
         patch.changeDescription = null;
+
+        if (site.lastHash === null) {
+          // First fetch — log baseline
+          patch.history = [
+            ...(site.history ?? []),
+            makeEntry("Initial snapshot taken.", "quiet", undefined, undefined, data.screenshot),
+          ];
+        } else if (contentChanged && site.lastContent) {
+          const descRes = await fetch("/api/describe-change", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              oldValue: site.lastContent,
+              newValue: data.markdown,
+              watchTarget: "page content",
+              url: site.url,
+            }),
+          });
+          const descData = descRes.ok
+            ? ((await descRes.json()) as { description: string; classification: "major" | "minor" })
+            : { description: "Page content changed.", classification: "minor" as const };
+          patch.changeDescription = descData.description;
+          patch.history = [
+            ...(site.history ?? []),
+            makeEntry(descData.description, descData.classification, site.lastContent ?? undefined, data.markdown, data.screenshot),
+          ];
+        } else {
+          patch.history = [
+            ...(site.history ?? []),
+            makeEntry("No changes detected.", "quiet", undefined, undefined, data.screenshot),
+          ];
+        }
       }
 
       updateSite(site.id, patch);
@@ -153,9 +234,8 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
 
   function toggleExpanded(id: string) {
     setExpanded((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
+      if (prev.has(id)) return new Set();
+      return new Set([id]);
     });
     if (!activeTab[id]) {
       setActiveTab((prev) => ({ ...prev, [id]: "markdown" }));
@@ -216,10 +296,14 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                   ? "var(--t3)"
                   : "var(--blue)";
 
+          const histEntries = [...(site.history ?? [])].reverse();
+          const histIdx = Math.min(selectedEntry[site.id] ?? 0, Math.max(0, histEntries.length - 1));
+          const histEntry = histEntries[histIdx] ?? null;
+
           return (
             <div
               key={site.id}
-              className="bg-[var(--bg2)] border border-[var(--bdr)] rounded-2xl overflow-hidden"
+              className="group bg-[var(--bg2)] border border-[var(--bdr)] hover:border-[var(--t3)] rounded-2xl overflow-hidden transition-colors"
             >
               {/* Main row */}
               <div className="flex items-center gap-3 px-4 py-3">
@@ -229,14 +313,10 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                     aria-label={isExpanded && tab === "screenshot" ? "Hide preview" : "Show screenshot preview"}
                     onClick={() => {
                       if (!isExpanded) {
-                        setExpanded((prev) => new Set(prev).add(site.id));
+                        setExpanded(new Set([site.id]));
                         setActiveTab((prev) => ({ ...prev, [site.id]: "screenshot" }));
                       } else if (tab === "screenshot") {
-                        setExpanded((prev) => {
-                          const next = new Set(prev);
-                          next.delete(site.id);
-                          return next;
-                        });
+                        setExpanded(new Set());
                       } else {
                         setActiveTab((prev) => ({ ...prev, [site.id]: "screenshot" }));
                       }
@@ -265,76 +345,184 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                   )}
                 </div>
 
-                {/* Status badge or change description */}
+                {/* Timestamps */}
                 <div className="shrink-0 text-right">
                   <span
                     className="text-xs font-semibold font-mono block"
                     style={{ color: statusColor }}
                   >
-                    {STATUS_LABEL[status]}
+                    {status === "sniffing" || status === "error"
+                      ? STATUS_LABEL[status]
+                      : timeAgo(
+                          status === "changed"
+                            ? (site.history?.at(-1)?.timestamp ?? site.lastChecked)
+                            : site.lastChecked
+                        )}
                   </span>
-                  {status === "changed" && site.changeDescription && (
-                    <span className="text-xs text-[var(--t3)] block max-w-[180px] text-right leading-tight mt-0.5">
-                      {site.changeDescription}
+                  {(status === "changed" || status === "error") && site.lastChecked && (
+                    <span className="text-[10px] font-mono text-[var(--t3)] block mt-0.5">
+                      ↻ {timeAgo(site.lastChecked)}
                     </span>
                   )}
                 </div>
 
-                {/* Watch target edit button */}
-                <button
-                  aria-label={isEditingTarget ? "Cancel watch target" : "Edit watch target"}
-                  onClick={() =>
-                    setShowTargetInput((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(site.id)) {
-                        next.delete(site.id);
-                      } else {
-                        next.add(site.id);
-                        setEditingTarget((e) => ({ ...e, [site.id]: site.watchTarget ?? "" }));
-                      }
-                      return next;
-                    })
-                  }
-                  className={`shrink-0 text-sm transition-colors cursor-pointer bg-transparent border-none leading-none ${
-                    isEditingTarget || site.watchTarget
-                      ? "text-[var(--blue)]"
-                      : "text-[var(--t3)] hover:text-[var(--t2)]"
-                  }`}
-                  title={site.watchTarget ? `Watching: ${site.watchTarget}` : "Set watch target"}
-                >
-                  ✦
-                </button>
-
-                {/* Preview toggle */}
-                {hasContent && (
+                {/* Actions — revealed on hover */}
+                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Watch target edit button */}
                   <button
-                    aria-label={isExpanded ? "Hide preview" : "Show preview"}
-                    onClick={() => toggleExpanded(site.id)}
-                    className="shrink-0 px-3 py-1.5 rounded-lg border border-[var(--bdr)] bg-[var(--bg3)] text-xs text-[var(--t2)] font-semibold cursor-pointer hover:text-[var(--t1)] transition-colors"
+                    aria-label={isEditingTarget ? "Cancel watch target" : "Edit watch target"}
+                    onClick={() =>
+                      setShowTargetInput((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(site.id)) {
+                          next.delete(site.id);
+                        } else {
+                          next.add(site.id);
+                          setEditingTarget((e) => ({ ...e, [site.id]: site.watchTarget ?? "" }));
+                        }
+                        return next;
+                      })
+                    }
+                    className={`shrink-0 text-sm transition-colors cursor-pointer bg-transparent border-none leading-none ${
+                      isEditingTarget || site.watchTarget
+                        ? "text-[var(--blue)]"
+                        : "text-[var(--t3)] hover:text-[var(--t2)]"
+                    }`}
+                    title={site.watchTarget ? `Watching: ${site.watchTarget}` : "Set watch target"}
                   >
-                    {isExpanded ? "Hide" : "Preview"}
+                    ✦
                   </button>
-                )}
 
-                {/* Fetch button */}
-                <button
-                  aria-label="Fetch"
-                  onClick={() => fetchSite(site)}
-                  disabled={sniffing.has(site.id)}
-                  className="shrink-0 px-3 py-1.5 rounded-lg border border-[var(--bdr)] bg-[var(--bg3)] text-xs text-[var(--t2)] font-semibold cursor-pointer hover:text-[var(--t1)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Fetch
-                </button>
+                  {/* Preview toggle */}
+                  {hasContent && (
+                    <button
+                      aria-label={isExpanded ? "Hide preview" : "Show preview"}
+                      onClick={() => toggleExpanded(site.id)}
+                      className="shrink-0 px-3 py-1.5 rounded-lg border border-[var(--bdr)] bg-[var(--bg3)] text-xs text-[var(--t2)] font-semibold cursor-pointer hover:text-[var(--t1)] transition-colors"
+                    >
+                      {isExpanded ? "Hide" : "Preview"}
+                    </button>
+                  )}
 
-                {/* Remove button */}
-                <button
-                  aria-label="Remove"
-                  onClick={() => handleRemove(site.id)}
-                  className="shrink-0 text-[var(--t3)] hover:text-[var(--red)] transition-colors text-lg leading-none cursor-pointer bg-transparent border-none"
-                >
-                  ×
-                </button>
+                  {/* Refresh button */}
+                  <button
+                    aria-label="Fetch"
+                    onClick={() => fetchSite(site)}
+                    disabled={sniffing.has(site.id)}
+                    title="Refresh"
+                    className="shrink-0 text-[var(--t3)] hover:text-[var(--t1)] transition-colors text-base leading-none cursor-pointer bg-transparent border-none disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    ↻
+                  </button>
+
+                  {/* Remove button */}
+                  <button
+                    aria-label="Remove"
+                    onClick={() => handleRemove(site.id)}
+                    className="shrink-0 text-[var(--t3)] hover:text-[var(--red)] transition-colors text-lg leading-none cursor-pointer bg-transparent border-none"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
+
+              {/* Change history — scrollable list left, screenshot right */}
+              {histEntries.length > 0 && (
+                <div className="border-t border-[var(--bdr)] flex items-stretch">
+                  {/* Left: scrollable entry list */}
+                  <div className="flex-1 min-w-0 overflow-y-auto max-h-[260px]">
+                    {histEntries.map((entry, idx) => {
+                      const isSelected = idx === histIdx;
+                      const diffOpen = expandedDiff.has(entry.id);
+                      const entryColor =
+                        entry.classification === "major"
+                          ? "var(--red)"
+                          : entry.classification === "quiet"
+                          ? "var(--green)"
+                          : "var(--t3)";
+                      return (
+                        <div
+                          key={entry.id}
+                          onClick={() => setSelectedEntry((p) => ({ ...p, [site.id]: idx }))}
+                          className={`px-4 py-2.5 cursor-pointer border-b border-[var(--bdr)] last:border-b-0 transition-colors ${
+                            isSelected ? "bg-[var(--bg3)]" : "hover:bg-[var(--bg)]"
+                          }`}
+                        >
+                          {/* Row: badge · description · timestamp */}
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className="shrink-0 w-1.5 h-1.5 rounded-full"
+                              style={{ background: entryColor }}
+                            />
+                            <span className="text-xs text-[var(--t2)] flex-1 truncate leading-snug">
+                              {entry.description}
+                            </span>
+                            <span className="shrink-0 text-[10px] font-mono text-[var(--t3)] ml-2">
+                              {new Date(entry.timestamp).toLocaleString(undefined, {
+                                month: "short", day: "numeric",
+                                hour: "2-digit", minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+
+                          {/* Diff toggle — only on the selected row when values exist */}
+                          {isSelected && (entry.oldValue || entry.newValue) && (
+                            <div className="mt-2">
+                              <button
+                                aria-label={diffOpen ? "Hide diff" : "Show diff"}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedDiff((prev) => {
+                                    const next = new Set(prev);
+                                    diffOpen ? next.delete(entry.id) : next.add(entry.id);
+                                    return next;
+                                  });
+                                }}
+                                className="text-[10px] font-mono text-[var(--t3)] hover:text-[var(--t2)] cursor-pointer bg-transparent border-none leading-none transition-colors"
+                              >
+                                {diffOpen ? "▴ diff" : "▾ diff"}
+                              </button>
+                              {diffOpen && (
+                                <div className="mt-1 flex flex-col gap-0.5">
+                                  {entry.oldValue && (
+                                    <div className="flex gap-2 items-baseline min-w-0">
+                                      <span className="shrink-0 text-[10px] font-mono text-[var(--t3)]">was</span>
+                                      <span className="text-[10px] font-mono text-[var(--red)] truncate">
+                                        {entry.oldValue.length > 100 ? entry.oldValue.slice(0, 100) + "…" : entry.oldValue}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {entry.newValue && (
+                                    <div className="flex gap-2 items-baseline min-w-0">
+                                      <span className="shrink-0 text-[10px] font-mono text-[var(--t3)]">now</span>
+                                      <span className="text-[10px] font-mono text-[var(--green)] truncate">
+                                        {entry.newValue.length > 100 ? entry.newValue.slice(0, 100) + "…" : entry.newValue}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Right: screenshot for the selected entry, fixed position, no flicker */}
+                  {(histEntry?.screenshot ?? site.lastScreenshot) && (
+                    <div className="relative shrink-0 w-[220px] self-stretch border-l border-[var(--bdr)] min-h-[120px]">
+                      <Image
+                        src={(histEntry?.screenshot ?? site.lastScreenshot)!}
+                        alt={`Screenshot of ${site.label}`}
+                        fill
+                        className="object-cover object-top"
+                        unoptimized
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Watch target input */}
               {isEditingTarget && (
