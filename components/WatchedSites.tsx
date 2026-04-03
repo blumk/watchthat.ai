@@ -312,16 +312,16 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
               >
                 {/* Main row */}
                 <div className="flex items-center gap-3 px-4 py-3">
-                  {/* Thumbnail — click opens modal */}
-                  {site.lastScreenshot && (
+                  {/* Thumbnail — reflects selected history entry; click opens modal */}
+                  {panelScreenshot && (
                     <button
                       aria-label="Open screenshot"
-                      onClick={() => setModalScreenshot(site.lastScreenshot!)}
+                      onClick={() => setModalScreenshot(panelScreenshot)}
                       className="relative shrink-0 w-[60px] h-[38px] rounded-lg overflow-hidden border border-[var(--bdr)] hover:border-[var(--t3)] transition-colors cursor-zoom-in p-0"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={site.lastScreenshot}
+                        src={panelScreenshot}
                         alt={`Screenshot of ${site.label}`}
                         className="absolute inset-0 w-full h-full object-cover object-top"
                       />
