@@ -88,7 +88,7 @@ this doc is the human-readable summary.
 - `updateSite` with an unknown ID is a no-op [`storage.test.ts`]
 - `removeSite(id)` deletes the record [`storage.test.ts`]
 - `removeSite` with an unknown ID is a no-op [`storage.test.ts`]
-- Large fields (`lastScreenshot`, `lastHtml`, `lastRawHtml`, `ChangeEntry.screenshot`) are stripped before writing — session-only
+- `lastHtml`, `lastRawHtml`, and `ChangeEntry.screenshot` are stripped before writing; `lastScreenshot` is persisted across sessions
 - Legacy `watchdog-sites-v1` localStorage data is migrated to IndexedDB on first open
 
 ---
