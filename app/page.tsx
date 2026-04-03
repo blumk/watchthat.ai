@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import Nav from "@/components/Nav";
 import Hero from "@/components/Hero";
-import FeatureCards from "@/components/FeatureCards";
 import HowItWorks from "@/components/HowItWorks";
+import Pricing from "@/components/Pricing";
 import Footer from "@/components/Footer";
 import WatchedSites from "@/components/WatchedSites";
 import { getSites, addSite, removeSite } from "@/lib/storage";
@@ -54,11 +54,8 @@ export default function Home() {
         </div>
       )}
       <WatchedSites sites={sites} onUpdate={handleUpdate} onRemove={handleRemove} />
-      <FeatureCards />
-      <div className="max-w-[900px] mx-auto px-6">
-        <div className="h-px bg-[var(--bdr)]" />
-      </div>
       <HowItWorks />
+      <Pricing />
       <Footer />
     </div>
   );

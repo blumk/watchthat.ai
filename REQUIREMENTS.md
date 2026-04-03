@@ -43,16 +43,13 @@ this doc is the human-readable summary.
 - Shows "Error" indicator when the site has an error [`WatchedSites.test.tsx`]
 
 **Remove**
-- Remove button shown at the bottom of the expanded preview panel for sites with content [`WatchedSites.test.tsx`]
-- Remove button shown inline (in the hover action group) for error sites that have no content and therefore cannot expand [`WatchedSites.test.tsx`]
+- Remove button always shown in the hover action group [`WatchedSites.test.tsx`]
 - Clicking Remove calls `onRemove` with the site ID [`WatchedSites.test.tsx`]
 
-**Preview panel**
-- Expand (▾) button shown only when the site has content (`lastContent`, `lastHtml`, or `lastScreenshot`) [`WatchedSites.test.tsx`]
-- Expand button hidden when no content is available [`WatchedSites.test.tsx`]
-- Clicking ▾ expands the panel; clicking ▴ collapses it [`WatchedSites.test.tsx`]
-- Panel shows content tabs: Markdown, HTML, Raw HTML, Screenshot (only tabs with data shown)
-- Expanding one card collapses all others (accordion)
+**Screenshot**
+- Thumbnail shown in main row when `lastScreenshot` is present [`WatchedSites.test.tsx`]
+- Clicking the thumbnail opens a full-screen modal [`WatchedSites.test.tsx`]
+- Screenshot panel on the right of the history list also opens the modal on click
 
 **Watch target**
 - Edit (✦) button always visible in hover group [`WatchedSites.test.tsx`]
@@ -67,7 +64,7 @@ this doc is the human-readable summary.
 - Clicking an entry selects it [`WatchedSites.test.tsx`]
 - Initial snapshot logged as "Initial snapshot taken." with `quiet` classification [`WatchedSites.test.tsx`]
 - Change entries show the Claude-generated description [`WatchedSites.test.tsx`]
-- Selected entry's screenshot shown in a fixed panel to the right (no flicker)
+- Selected entry's screenshot shown in a panel to the right; clicking opens the full-screen modal
 
 **Fetch**
 - Clicking ↻ calls `POST /api/scrape` and then calls `onUpdate` with the result [`WatchedSites.test.tsx`]
@@ -137,8 +134,8 @@ this doc is the human-readable summary.
 ## Nav
 
 - Displays the "Watchdog" brand name [`Nav.test.tsx`]
-- "Features" link points to `#features` [`Nav.test.tsx`]
 - "How it works" link points to `#how` [`Nav.test.tsx`]
+- "Pricing" link points to `#pricing` [`Nav.test.tsx`]
 
 ---
 
@@ -150,19 +147,23 @@ this doc is the human-readable summary.
 
 ---
 
-## FeatureCards
-
-- Renders four feature card titles [`FeatureCards.test.tsx`]
-- Section has `id="features"` for anchor navigation [`FeatureCards.test.tsx`]
-
----
-
 ## HowItWorks
 
 - Renders the section heading [`HowItWorks.test.tsx`]
 - Renders step titles for all three steps [`HowItWorks.test.tsx`]
 - Renders step numbers 1, 2, 3 [`HowItWorks.test.tsx`]
 - Section has `id="how"` for anchor navigation [`HowItWorks.test.tsx`]
+
+---
+
+## Pricing
+
+- Renders Free, Pro, and Enterprise plan names [`Pricing.test.tsx`]
+- Section has `id="pricing"` for anchor navigation [`Pricing.test.tsx`]
+- Pro plan marked as "Most popular" [`Pricing.test.tsx`]
+- Free tier: 2 websites, 5 refreshes/day
+- Pro tier: 1,000 websites, hourly refresh, stealth mode, CAPTCHA solving
+- Enterprise: unlimited websites, custom intervals, advanced stealth, residential proxies, CAPTCHA solving
 
 ---
 

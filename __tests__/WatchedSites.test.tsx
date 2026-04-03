@@ -62,7 +62,6 @@ describe("WatchedSites", () => {
         onRemove={jest.fn()}
       />
     );
-    // timestamp from history entry + refresh line, both show "ago"
     expect(screen.getAllByText(/ago/i).length).toBeGreaterThanOrEqual(1);
   });
 
@@ -77,11 +76,9 @@ describe("WatchedSites", () => {
     expect(screen.getByText(/error/i)).toBeInTheDocument();
   });
 
-  it("calls onRemove when Remove button is clicked (card must be expanded first)", () => {
+  it("calls onRemove when Remove button is clicked", () => {
     const onRemove = jest.fn();
     render(<WatchedSites sites={[makeSite()]} onUpdate={jest.fn()} onRemove={onRemove} />);
-    // Remove is only shown when the card is expanded
-    fireEvent.click(screen.getByRole("button", { name: /show preview/i }));
     fireEvent.click(screen.getByRole("button", { name: /remove/i }));
     expect(onRemove).toHaveBeenCalledWith("abc123");
   });
@@ -99,29 +96,26 @@ describe("WatchedSites", () => {
     expect(onRemove).toHaveBeenCalledWith("abc123");
   });
 
-  it("shows Preview button when lastContent is present", () => {
-    render(<WatchedSites sites={[makeSite()]} onUpdate={jest.fn()} onRemove={jest.fn()} />);
-    expect(screen.getByRole("button", { name: /show preview/i })).toBeInTheDocument();
-  });
-
-  it("does not show Preview button when no content is available", () => {
+  it("shows screenshot thumbnail button when lastScreenshot is present", () => {
     render(
       <WatchedSites
-        sites={[makeSite({ lastContent: null, lastHtml: null, lastScreenshot: null })]}
+        sites={[makeSite({ lastScreenshot: "data:image/png;base64,abc" })]}
         onUpdate={jest.fn()}
         onRemove={jest.fn()}
       />
     );
-    expect(screen.queryByRole("button", { name: /preview/i })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /open screenshot/i }).length).toBeGreaterThanOrEqual(1);
   });
 
-  it("toggles content preview on Preview/Hide click", () => {
-    render(<WatchedSites sites={[makeSite({ lastContent: "page text here" })]} onUpdate={jest.fn()} onRemove={jest.fn()} />);
-    expect(screen.queryByText("page text here")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /show preview/i }));
-    expect(screen.getByText("page text here")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /hide preview/i }));
-    expect(screen.queryByText("page text here")).not.toBeInTheDocument();
+  it("does not show screenshot button when no screenshot is available", () => {
+    render(
+      <WatchedSites
+        sites={[makeSite({ lastScreenshot: null })]}
+        onUpdate={jest.fn()}
+        onRemove={jest.fn()}
+      />
+    );
+    expect(screen.queryByRole("button", { name: /open screenshot/i })).not.toBeInTheDocument();
   });
 
   it("shows watch target edit button", () => {
@@ -154,7 +148,6 @@ describe("WatchedSites", () => {
     render(
       <WatchedSites sites={[makeSite({ history })]} onUpdate={jest.fn()} onRemove={jest.fn()} />
     );
-    // Both entries visible simultaneously in the scrollable list
     expect(screen.getByText("First change.")).toBeInTheDocument();
     expect(screen.getByText("Second change.")).toBeInTheDocument();
   });

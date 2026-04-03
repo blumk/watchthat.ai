@@ -1,10 +1,5 @@
 const features = [
   {
-    icon: "⚡",
-    title: "Instant detection",
-    desc: "Hashes page content and compares snapshots to catch every change.",
-  },
-  {
     icon: "🔕",
     title: "Subscribe & forget",
     desc: "Add a URL once. Watchdog monitors and barks only when something changes.",
@@ -25,7 +20,7 @@ export default function FeatureCards() {
   return (
     <section
       id="features"
-      className="max-w-[900px] mx-auto px-6 py-16 grid grid-cols-2 md:grid-cols-4 gap-4"
+      className="max-w-[900px] mx-auto px-6 py-16 grid grid-cols-1 sm:grid-cols-3 gap-4"
     >
       {features.map((f, i) => (
         <div
