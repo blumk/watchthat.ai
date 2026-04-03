@@ -4,7 +4,7 @@
   "private": true,
   "description": "Know when websites change.",
   "scripts": {
-    "dev": "rm -rf .next && next dev --turbopack",
+    "dev": "rm -rf .next && next dev",
     "prebuild": "NODE_ENV=test jest --ci",
     "build": "next build",
     "start": "next start",
