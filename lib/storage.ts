@@ -99,14 +99,9 @@ export async function updateSite(id: string, patch: Partial<WatchedSite>): Promi
   const db = await getDB();
   const site = await db.get("sites", id);
   if (!site) return;
-  // Strip unused HTML fields and per-entry screenshots (too many) before persisting
+  // Strip unused HTML fields before persisting
   const { lastHtml: _h, lastRawHtml: _r, ...persistable } = patch;
-  const historyToPersist = persistable.history?.map(({ screenshot: _sc, ...entry }) => entry);
-  await db.put("sites", {
-    ...site,
-    ...persistable,
-    ...(historyToPersist !== undefined ? { history: historyToPersist } : {}),
-  });
+  await db.put("sites", { ...site, ...persistable });
 }
 
 export async function removeSite(id: string): Promise<void> {
