@@ -20,9 +20,6 @@ export interface WatchedSite {
   lastHtml: string | null;
   lastRawHtml: string | null;
   lastScreenshot: string | null;
-  watchTarget: string | null;
-  lastExtractedValue: string | null;
-  lastExtractedHash: string | null;
   changeDescription: string | null;
   changed: boolean;
   error: string | null;
@@ -82,9 +79,6 @@ export async function addSite(rawUrl: string): Promise<WatchedSite> {
     lastHtml: null,
     lastRawHtml: null,
     lastScreenshot: null,
-    watchTarget: null,
-    lastExtractedValue: null,
-    lastExtractedHash: null,
     changeDescription: null,
     changed: false,
     error: null,

@@ -43,22 +43,19 @@ this doc is the human-readable summary.
 - Shows "Error" indicator when the site has an error [`WatchedSites.test.tsx`]
 
 **Remove**
-- Remove button always shown in the hover action group [`WatchedSites.test.tsx`]
-- Clicking Remove calls `onRemove` with the site ID [`WatchedSites.test.tsx`]
+- "Remove website" link shown in the expanded footer [`WatchedSites.test.tsx`]
+- Clicking it calls `onRemove` with the site ID [`WatchedSites.test.tsx`]
 
 **Screenshot**
 - Thumbnail shown in main row when `lastScreenshot` is present [`WatchedSites.test.tsx`]
 - Clicking the thumbnail opens a full-screen modal [`WatchedSites.test.tsx`]
 - Screenshot panel on the right of the history list also opens the modal on click
 
-**Watch target**
-- Edit (✦) button always visible in hover group [`WatchedSites.test.tsx`]
-- Clicking it reveals a text input for the watch target [`WatchedSites.test.tsx`]
-- When `watchTarget` and `lastExtractedValue` are set, the extracted value is displayed on the card [`WatchedSites.test.tsx`]
-
 **Change history log**
 - All fetches (including quiet/no-change checks) are appended as `ChangeEntry` records
-- All history entries rendered in a scrollable list [`WatchedSites.test.tsx`]
+- Changelog hidden by default; a chevron button (▾/▴) expands/collapses it [`WatchedSites.test.tsx`]
+- When collapsed, the latest entry description shown as a subtitle below the site label [`WatchedSites.test.tsx`]
+- All history entries rendered in a scrollable list when expanded [`WatchedSites.test.tsx`]
 - Each entry shows: classification dot, description text, relative time, exact timestamp
 - Description text wraps (not truncated)
 - Clicking an entry selects it [`WatchedSites.test.tsx`]
@@ -100,15 +97,6 @@ this doc is the human-readable summary.
 - Returns `400` for an invalid URL (non-parseable or non-http/https protocol) [`scrape.test.ts`]
 - Returns `500` when Firecrawl throws [`scrape.test.ts`]
 - Client-side: reads response as text before JSON parsing; maps `FUNCTION_INVOCATION_TIMEOUT` (HTTP 504) and `FUNCTION_INVOCATION_FAILED` (HTTP 502) to readable error messages
-
----
-
-## API — `/api/extract`
-
-- `POST` with `{ markdown, watchTarget }` returns `{ value }` [`extract.test.ts`]
-- Returns `400` when `markdown` is missing [`extract.test.ts`]
-- Returns `400` when `watchTarget` is missing [`extract.test.ts`]
-- Returns `500` when Claude throws [`extract.test.ts`]
 
 ---
 
