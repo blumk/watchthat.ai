@@ -1,4 +1,4 @@
-# Watchdog — Product & Technical Requirements
+# Watchthis — Product & Technical Requirements
 
 **Know when websites change.**
 
@@ -15,7 +15,7 @@
 
 ### 1. Executive Summary
 
-Watchdog is a website change monitoring tool that lets users subscribe to any URL and receive alerts when the page's content changes. Users paste a URL, Watchdog takes an initial content snapshot, and on subsequent checks it compares the current state against the stored baseline. When a difference is detected, the user sees exactly what changed through an inline diff view.
+Watchthis is a website change monitoring tool that lets users subscribe to any URL and receive alerts when the page's content changes. Users paste a URL, Watchthis takes an initial content snapshot, and on subsequent checks it compares the current state against the stored baseline. When a difference is detected, the user sees exactly what changed through an inline diff view.
 
 The product addresses a real, underserved need: knowing when a webpage updates without manually revisiting it. Use cases range from tracking competitor pricing pages, monitoring government regulation updates, following job board postings, watching for restocks on product pages, and detecting unauthorized changes to one's own sites.
 
@@ -26,7 +26,7 @@ The web is dynamic but human attention is finite. People and businesses need to 
 - **Enterprise monitoring tools** (Distill.io, Visualping, ChangeTower) — complex setup, subscription fatigue, feature bloat. Most users need 10% of what these offer.
 - **Manual checking** — bookmarking a page and revisiting it periodically. Error-prone, time-consuming, and unsustainable at scale.
 
-Watchdog fills the gap: a fast, focused, zero-configuration tool. Paste a URL, get alerted. No account required for the MVP.
+Watchthis fills the gap: a fast, focused, zero-configuration tool. Paste a URL, get alerted. No account required for the MVP.
 
 ### 3. Target Users
 
@@ -48,8 +48,8 @@ Watchdog fills the gap: a fast, focused, zero-configuration tool. Paste a URL, g
 
 - **Zero friction.** Paste a URL and you're done. No signup, no config, no learning curve.
 - **Clarity over complexity.** Show what changed, not a wall of data. The diff view is the product.
-- **Reliable by default.** If a site is reachable, Watchdog should monitor it. Handle CORS, JS rendering, and encoding gracefully.
-- **Personality.** The "watchdog" brand is friendly and clear. The dog barks when something changes. Users remember it.
+- **Reliable by default.** If a site is reachable, Watchthis should monitor it. Handle CORS, JS rendering, and encoding gracefully.
+- **Personality.** The "watchthis" brand is friendly and clear. The dog barks when something changes. Users remember it.
 
 ### 5. Feature Requirements
 
@@ -58,7 +58,7 @@ Watchdog fills the gap: a fast, focused, zero-configuration tool. Paste a URL, g
 | Feature | Description | Priority |
 |---------|-------------|----------|
 | URL input (hero search bar) | Prominent search bar in hero section. User pastes a URL and clicks "Watch." Auto-prefixes `https://` if missing. | P0 |
-| Automatic first snapshot | On add, Watchdog immediately fetches the page, extracts text content, generates a hash, and stores the baseline. | P0 |
+| Automatic first snapshot | On add, Watchthis immediately fetches the page, extracts text content, generates a hash, and stores the baseline. | P0 |
 | Manual re-check | Per-site "Fetch" (↻) button to re-check on demand. | P0 |
 | Change detection | Compares new content hash to stored hash. If different, status becomes "Changed" with a red timestamp. | P0 |
 | Semantic watch target | Per-site "watch target" field (e.g. "the Pro plan price"). Uses Claude Haiku to extract a specific value on each check and detect changes to that value only. | P0 |
@@ -90,7 +90,7 @@ Watchdog fills the gap: a fast, focused, zero-configuration tool. Paste a URL, g
 
 #### 6.1 First-Time User
 
-1. User lands on Watchdog landing page. Sees hero headline, search bar, feature cards.
+1. User lands on Watchthis landing page. Sees hero headline, search bar, feature cards.
 2. Pastes a URL into the search bar and clicks "Watch" (or presses Enter).
 3. Page auto-scrolls to dashboard. Site appears with "Sniffing…" status.
 4. After 1–3 seconds, status changes to "All quiet" with a green checkmark. Baseline captured.
@@ -99,7 +99,7 @@ Watchdog fills the gap: a fast, focused, zero-configuration tool. Paste a URL, g
 
 #### 6.2 Returning User
 
-1. Opens Watchdog. Previously watched sites load from persistent storage.
+1. Opens Watchthis. Previously watched sites load from persistent storage.
 2. Clicks "Sniff All" to re-check all sites simultaneously.
 3. Sites with changes display red indicators. Nav shows alert dot.
 4. Can add new URLs from the same hero search bar without disrupting the existing dashboard.
@@ -128,7 +128,7 @@ The MVP is a single-page React application with no backend. All logic runs clien
 |-------|-----------|-------|
 | Frontend | Next.js 15 (App Router, RSC) with Turbopack | Component-based, TDD enforced |
 | Styling | Tailwind CSS + CSS variables | `prefers-color-scheme` for auto dark/light |
-| Storage | IndexedDB via `idb` | Async, no practical size limit. Session-only fields (screenshots, raw HTML) stripped before persisting. One-time migration from legacy `watchdog-sites-v1` localStorage key. |
+| Storage | IndexedDB via `idb` | Async, no practical size limit. Session-only fields (screenshots, raw HTML) stripped before persisting. One-time migration from legacy `watchthis-sites-v1` localStorage key. |
 | Scraping | Firecrawl.dev API via Next.js API route (`/api/scrape`) | Handles CORS, JS rendering, returns markdown + HTML + full-page screenshot |
 | Intelligence | Anthropic Claude Haiku via `/api/extract` and `/api/describe-change` | Extracts watch-target values; generates plain-English change descriptions |
 | Hashing | djb2 (client-side) | 32-bit hash of markdown content or extracted value |
@@ -334,7 +334,7 @@ The trigger was full-page screenshots. Firecrawl's `actions` API returns a base6
 - No practical size limit (browser-managed disk quota)
 - Async API — doesn't block the main thread
 - Large fields (`lastScreenshot`, `lastHtml`, `lastRawHtml`, `ChangeEntry.screenshot`) are stripped before writing — they are kept in React state for the current session only. The user can re-fetch to restore them.
-- One-time migration: on first `openDB`, the legacy `watchdog-sites-v1` key is read from localStorage, imported into IndexedDB, and the localStorage key is deleted.
+- One-time migration: on first `openDB`, the legacy `watchthis-sites-v1` key is read from localStorage, imported into IndexedDB, and the localStorage key is deleted.
 
 **Test setup:** `fake-indexeddb/auto` added to `jest.setup.ts`. `fake-indexeddb` v6 requires `structuredClone`, which jsdom doesn't expose even on Node 17+. A JSON-based polyfill is added to the setup file.
 

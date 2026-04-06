@@ -29,21 +29,21 @@ export interface WatchedSite {
   refreshInterval: number | null; // seconds; stored for future auto-polling
 }
 
-interface WatchdogDB extends DBSchema {
+interface WatchthisDB extends DBSchema {
   sites: { key: string; value: WatchedSite };
 }
 
-let dbPromise: Promise<IDBPDatabase<WatchdogDB>> | null = null;
+let dbPromise: Promise<IDBPDatabase<WatchthisDB>> | null = null;
 
-function getDB(): Promise<IDBPDatabase<WatchdogDB>> {
+function getDB(): Promise<IDBPDatabase<WatchthisDB>> {
   if (!dbPromise) {
-    dbPromise = openDB<WatchdogDB>("watchdog", 1, {
+    dbPromise = openDB<WatchthisDB>("watchthis", 1, {
       upgrade(db) {
         db.createObjectStore("sites", { keyPath: "id" });
       },
     }).then(async (db) => {
       // One-time migration from localStorage
-      const LEGACY_KEY = "watchdog-sites-v1";
+      const LEGACY_KEY = "watchthis-sites-v1";
       const raw = typeof localStorage !== "undefined" ? localStorage.getItem(LEGACY_KEY) : null;
       if (raw) {
         try {

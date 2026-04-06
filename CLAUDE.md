@@ -50,7 +50,7 @@ Next.js 15 App Router (webpack dev bundler — Turbopack removed due to stale ma
 
 **Component model:** Most components are Server Components. Client components: `Hero.tsx`, `WatchedSites.tsx`, `page.tsx`. New components default to server unless they need interactivity.
 
-**State & storage:** `lib/storage.ts` wraps IndexedDB via the `idb` library. All functions are async. `lastHtml` and `lastRawHtml` are stripped before writing (unused). All other fields including `lastScreenshot` and `ChangeEntry.screenshot` are persisted. Site status (`sniffing | quiet | changed | error`) is derived at runtime, never persisted. Legacy `watchdog-sites-v1` localStorage data is auto-migrated on first open.
+**State & storage:** `lib/storage.ts` wraps IndexedDB via the `idb` library. All functions are async. `lastHtml` and `lastRawHtml` are stripped before writing (unused). All other fields including `lastScreenshot` and `ChangeEntry.screenshot` are persisted. Site status (`sniffing | quiet | changed | error`) is derived at runtime, never persisted. Legacy `watchthis-sites-v1` localStorage data is auto-migrated on first open.
 
 **Intelligence:** `POST /api/extract` (Claude Haiku) extracts a watch-target value from markdown. `POST /api/describe-change` (Claude Haiku) writes a plain-English change description. Both strip markdown code fences before JSON parsing the response.
 
@@ -60,4 +60,4 @@ Next.js 15 App Router (webpack dev bundler — Turbopack removed due to stale ma
 
 ## Roadmap Context
 
-See `watchdog-prd-trd.md` for the full spec and implementation findings. V2.0 adds backend, automated polling, and auth. Design decisions should account for this trajectory but not over-engineer prematurely.
+See `watchthis-prd-trd.md` for the full spec and implementation findings. V2.0 adds backend, automated polling, and auth. Design decisions should account for this trajectory but not over-engineer prematurely.
