@@ -60,14 +60,14 @@ export default function Home() {
     setSetupUrl(normalized);
   }
 
-  async function handleAdd(
+  async function handleImmediateAdd(
     url: string,
-    opts?: { watchTarget?: string | null; refreshInterval?: number | null; scrapeData?: { markdown: string; screenshot: string | null } | null }
-  ) {
-    const site = await addSite(url, opts);
+    scrapeData: { markdown: string; screenshot: string | null } | null
+  ): Promise<string> {
+    const site = await addSite(url);
     let finalSite: WatchedSite = site;
-    if (opts?.scrapeData) {
-      const { markdown, screenshot } = opts.scrapeData;
+    if (scrapeData) {
+      const { markdown, screenshot } = scrapeData;
       const titleMatch = markdown.match(/^#\s+(.+)$/m);
       const patch: Partial<WatchedSite> = {
         lastContent: markdown,
@@ -80,8 +80,20 @@ export default function Home() {
       finalSite = { ...site, ...patch };
     }
     setSites((prev) => (prev.some((s) => s.id === finalSite.id) ? prev : [...prev, finalSite]));
-    setSetupUrl(null);
     setView("watchlist");
+    return site.id;
+  }
+
+  async function handlePatch(
+    id: string,
+    patch: { watchTarget: string | null; refreshInterval: number | null }
+  ) {
+    await updateSite(id, patch);
+    setSites((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  }
+
+  function handleDone() {
+    setSetupUrl(null);
   }
 
   function handleDemo() {
@@ -111,17 +123,19 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[var(--bg)] overflow-x-hidden">
       <Nav hasSites={hasSites} view={view} onSwitchView={setView} />
-      {view === "watchlist" ? (
+      {setupUrl ? (
+        <WatchSetup
+          url={setupUrl}
+          onAdd={handleImmediateAdd}
+          onPatch={handlePatch}
+          onDone={handleDone}
+          onCancel={() => setSetupUrl(null)}
+        />
+      ) : view === "watchlist" ? (
         <>
           <AddBar onAdd={handleSetup} />
           <WatchedSites sites={sites} onUpdate={handleUpdate} onRemove={handleRemove} />
         </>
-      ) : setupUrl ? (
-        <WatchSetup
-          url={setupUrl}
-          onComplete={(url, opts) => handleAdd(url, opts)}
-          onCancel={() => setSetupUrl(null)}
-        />
       ) : (
         <>
           <Hero onAdd={handleSetup} onDemo={handleDemo} hasSites={hasSites} />

@@ -3,11 +3,11 @@ import Anthropic from "@anthropic-ai/sdk";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
-  const { url, markdown } = body as { url?: string; markdown?: string };
+  const { markdown } = body as { markdown?: string };
 
-  if (!url || !markdown) {
+  if (!markdown) {
     return NextResponse.json(
-      { error: "url and markdown are required" },
+      { error: "markdown is required" },
       { status: 400 }
     );
   }
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       messages: [
         {
           role: "user",
-          content: `You are helping a user set up monitoring for a website.\n\nURL: ${url}\n\nPage content (markdown):\n${markdown.slice(0, 3000)}\n\nReturn a JSON object with:\n- "siteType": a short 2-4 word label describing what this site is (e.g. "E-commerce product page", "News website", "Job listing", "Company about page")\n- "options": an array of exactly 2 specific, useful things to monitor on this site. Each must be an object {"label": "short human label (3-5 words)", "watchTarget": "precise description for AI extraction"}. Be concrete and specific to the actual content on this page. Good examples: {"label": "Pro plan price", "watchTarget": "the monthly price of the Pro plan"}, {"label": "Top news headline", "watchTarget": "the top breaking news headline"}, {"label": "CEO name", "watchTarget": "the name of the CEO or company leader"}\n\nReturn only the JSON object.`,
+          content: `You are helping a user set up monitoring for a website.\n\nPage content (markdown):\n${markdown.slice(0, 6000)}\n\nBased solely on the page content above, return a JSON object with:\n- "siteType": a short 2-4 word label describing what this site is (e.g. "E-commerce product page", "News website", "Job listing", "Company about page")\n- "options": an array of exactly 2 specific, useful things to monitor on this site. Each must be an object {"label": "short human label (3-5 words)", "watchTarget": "precise description for AI extraction"}. Be concrete and specific to the actual content on this page. Good examples: {"label": "Pro plan price", "watchTarget": "the monthly price of the Pro plan"}, {"label": "Top news headline", "watchTarget": "the top breaking news headline"}, {"label": "CEO name", "watchTarget": "the name of the CEO or company leader"}\n\nReturn only the JSON object.`,
         },
       ],
     });
