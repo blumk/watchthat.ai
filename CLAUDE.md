@@ -46,15 +46,15 @@ Next.js 15 App Router (webpack dev bundler — Turbopack removed due to stale ma
 
 **Fetching:** `POST /api/scrape` proxies to Firecrawl.dev and returns `{ markdown, html, rawHtml, screenshot }`. API key is server-side only. Firecrawl SDK v4 uses `.scrape()`, throws on error, returns `Document` directly. Full-page screenshot via `actions: [{ type: "screenshot", fullPage: true }]`; result at `result.actions.screenshots[0]`.
 
-**Key constraint:** `pnpm build` runs `jest --ci` via `prebuild`. Failing tests block the build. Both scripts explicitly set `NODE_ENV=test` to avoid React production bundle issues with RTL's `act()`. A pre-push git hook runs lint → test:ci → build before every push.
+**Key constraint:** `pnpm build` runs `jest --ci` via `prebuild`. Failing tests block the build. Both scripts explicitly set `NODE_ENV=test` to avoid React production bundle issues with RTL's `act()`. A pre-push git hook (`scripts/hooks/pre-push`, installed via `scripts/install-hooks.sh`) runs `scan:secrets` → `lint` → `test:ci` → `build` before every push.
 
 **Component model:** Most components are Server Components. Client components: `Hero.tsx`, `WatchedSites.tsx`, `page.tsx`. New components default to server unless they need interactivity.
 
-**State & storage:** `lib/storage.ts` wraps IndexedDB via the `idb` library. All functions are async. `lastHtml` and `lastRawHtml` are stripped before writing (unused). All other fields including `lastScreenshot` and `ChangeEntry.screenshot` are persisted. Site status (`sniffing | quiet | changed | error`) is derived at runtime, never persisted. Legacy `watchthis-sites-v1` localStorage data is auto-migrated on first open.
+**State & storage:** `lib/db.ts` is Supabase-backed. `getSites`/`updateSite`/`removeSite`/`_clearAll` call supabase-js directly under RLS; `addSite` goes through `POST /api/watches` because inserting into the shared `pages` table requires the service-role key. Anonymous auth is bootstrapped lazily on the first `lib/db` call (`supabase.auth.signInAnonymously()`). Snapshot-derived fields (`lastHash`, `lastContent`, `lastScreenshot`, `history`, `changeDescription`) are not yet persisted — Phase 3 wires them to the `snapshots` table. Site status (`sniffing | quiet | changed | error`) is derived at runtime, never persisted.
 
 **Intelligence:** `POST /api/extract` (Claude Haiku) extracts a watch-target value from markdown. `POST /api/describe-change` (Claude Haiku) writes a plain-English change description. Both strip markdown code fences before JSON parsing the response.
 
-**Testing:** TDD enforced. Tests live in `__tests__/`. API route tests need `/** @jest-environment node */` at the top. `fake-indexeddb/auto` and a `structuredClone` polyfill are configured in `jest.setup.ts`. Storage tests call `_clearAll()` in `beforeEach` to isolate state. When mocking Firecrawl, use `mockImplementation` in `beforeEach` (not module-level) because the instance is created per-request.
+**Testing:** TDD enforced. Tests live in `__tests__/`. API route tests need `/** @jest-environment node */` at the top. `lib/db` tests use the in-memory Supabase fake at `__tests__/helpers/supabase-mock.ts` (`_setSessionForTests` injects a fake client + user; `installFetchMock` intercepts `/api/watches`). When mocking Firecrawl, use `mockImplementation` in `beforeEach` (not module-level) because the instance is created per-request.
 
 **Styling:** CSS custom properties (`--bg`, `--bg2`, `--bg3`, `--t1`–`--t3`, `--blue`, `--blue-g`, `--red`, `--green`) defined in `globals.css`. Dark mode is the default; light mode via `prefers-color-scheme`.
 

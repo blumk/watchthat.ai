@@ -71,21 +71,26 @@ this doc is the human-readable summary.
 
 ---
 
-## Storage (`lib/storage`)
+## Storage (`lib/db`)
 
-- `getSites()` returns `[]` when the store is empty [`storage.test.ts`]
-- `addSite(url)` persists a new site and returns it [`storage.test.ts`]
-- `addSite` with a URL already in the store returns the existing site and does not create a duplicate [`storage.test.ts`]
-- `addSite` auto-prefixes `https://` when the protocol is missing [`storage.test.ts`]
-- `addSite` sets `label` to the URL hostname [`storage.test.ts`]
-- `addSite` initialises `lastHash`, `error` to `null`; `changed` to `false`; `history` to `[]` [`storage.test.ts`]
-- `addSite` generates a unique ID for each call [`storage.test.ts`]
-- `updateSite(id, patch)` merges patch into the existing record [`storage.test.ts`]
-- `updateSite` with an unknown ID is a no-op [`storage.test.ts`]
-- `removeSite(id)` deletes the record [`storage.test.ts`]
-- `removeSite` with an unknown ID is a no-op [`storage.test.ts`]
-- `lastHtml` and `lastRawHtml` are stripped before writing; `lastScreenshot` and `ChangeEntry.screenshot` are persisted across sessions
-- Legacy `watchthis-sites-v1` localStorage data is migrated to IndexedDB on first open
+Supabase-backed. Each browser gets a Supabase anonymous session on first use;
+per-user `watches` rows join shared `pages` rows via RLS. URL + label are
+persisted; snapshot-derived fields (`lastHash`, `lastContent`, `lastScreenshot`,
+`history`, …) live in React state only until Phase 3 wires them to `snapshots`.
+
+- `getSites()` returns `[]` when the current user has no watches [`db.test.ts`]
+- `addSite(url)` creates a watch (and upserts the shared page) and returns it [`db.test.ts`]
+- `addSite` with the same URL twice is idempotent — returns the same watch id [`db.test.ts`]
+- `addSite` auto-prefixes `https://` when the protocol is missing [`db.test.ts`]
+- `addSite` derives `label` from the hostname when the URL has no meaningful path slug [`db.test.ts`]
+- `addSite` initialises ephemeral fields (`lastHash`, `lastContent`, `lastScreenshot`, `history`) to null/empty defaults [`db.test.ts`]
+- `addSite` returns distinct ids for different URLs [`db.test.ts`]
+- `updateSite(id, { watchTarget })` persists `watch_target` on the watch row [`db.test.ts`]
+- `updateSite` silently ignores patch fields that only live in React state [`db.test.ts`]
+- `updateSite` with an unknown id is a no-op [`db.test.ts`]
+- `removeSite(id)` deletes the watch (RLS-scoped to the current user) [`db.test.ts`]
+- `removeSite` with an unknown id is a no-op [`db.test.ts`]
+- `_clearAll()` deletes every watch for the current user [`db.test.ts`]
 
 ---
 

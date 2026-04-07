@@ -8,10 +8,10 @@ import Pricing from "@/components/Pricing";
 import Footer from "@/components/Footer";
 import WatchedSites from "@/components/WatchedSites";
 import WatchSetup from "@/components/WatchSetup";
-import { getSites, addSite, updateSite, removeSite } from "@/lib/storage";
+import { getSites, addSite, updateSite, removeSite } from "@/lib/db";
 import { EXAMPLE_SITE } from "@/lib/example-site";
 import { hashString } from "@/lib/hash";
-import type { WatchedSite } from "@/lib/storage";
+import type { WatchedSite } from "@/lib/db";
 
 function AddBar({ onAdd }: { onAdd: (url: string) => void }) {
   const [value, setValue] = useState("");

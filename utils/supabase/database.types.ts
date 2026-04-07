@@ -1,3 +1,16 @@
+// Hand-maintained. When the schema grows, regenerate with:
+//   supabase gen types typescript --local > utils/supabase/database.types.ts
+// Kept manual for now because the schema is small and supabase CLI generation
+// requires the local stack to be running.
+
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
 export type Database = {
   public: {
     Tables: {
@@ -19,6 +32,7 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["pages"]["Insert"]>;
+        Relationships: [];
       };
       snapshots: {
         Row: {
@@ -46,6 +60,7 @@ export type Database = {
           change_emoji?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["snapshots"]["Insert"]>;
+        Relationships: [];
       };
       watches: {
         Row: {
@@ -65,7 +80,12 @@ export type Database = {
           watch_target?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["watches"]["Insert"]>;
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 };

@@ -1,4 +1,4 @@
-import type { WatchedSite } from "@/lib/storage";
+import type { WatchedSite } from "@/lib/db";
 
 export const EXAMPLE_SITE: WatchedSite = {
   id: "example-hellolingo",
