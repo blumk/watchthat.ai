@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { hashString } from "@/lib/hash";
 import { updateSite, removeSite } from "@/lib/db";
 import type { WatchedSite, ChangeEntry } from "@/lib/db";
+import type { ScrapeResponse } from "@/lib/snapshot";
 import ScreenshotModal from "./ScreenshotModal";
 
 function makeEntry(
@@ -104,7 +104,6 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
     if (sniffing.has(site.id)) return;
     setSniffing((prev) => new Set(prev).add(site.id));
     try {
-      // 1. Scrape
       const scrapeRes = await fetch("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -115,7 +114,6 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
       try {
         scrapeBody = JSON.parse(scrapeText);
       } catch {
-        // Vercel infrastructure error — body is HTML, not JSON
         if (scrapeRes.status === 504 || scrapeText.includes("FUNCTION_INVOCATION_TIMEOUT")) {
           throw new Error("timed out — page took too long to scrape (Vercel 10s limit on free tier)");
         }
@@ -127,55 +125,43 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
       if (!scrapeRes.ok) {
         throw new Error((scrapeBody.error as string | undefined) ?? `HTTP ${scrapeRes.status}`);
       }
-      const data = scrapeBody as unknown as {
-        markdown: string;
-        screenshot: string | null;
-      };
+      const { snapshot, newChange } = scrapeBody as unknown as ScrapeResponse;
 
-      // Extract page title from first markdown heading
-      const titleMatch = data.markdown.match(/^#\s+(.+)$/m);
+      const titleMatch = snapshot.markdown.match(/^#\s+(.+)$/m);
       const pageTitle = titleMatch ? titleMatch[1].trim().replace(/\s+/g, " ") : null;
 
+      const classification = snapshot.change_classification;
+      const cleanHistory = (site.history ?? []).filter((e) => e.classification !== "error");
       const patch: Partial<WatchedSite> = {
-        lastContent: data.markdown,
-        lastScreenshot: data.screenshot,
-        lastChecked: Date.now(),
+        lastContent: snapshot.markdown,
+        lastScreenshot: snapshot.screenshot_url,
+        lastHash: snapshot.content_hash,
+        lastChecked: new Date(snapshot.fetched_at).getTime(),
+        changeDescription: snapshot.change_description,
+        changed: classification !== null && classification !== "quiet",
         error: null,
+        history: cleanHistory,
         ...(pageTitle ? { label: pageTitle } : {}),
       };
 
-      // Hash full markdown
-      const newHash = hashString(data.markdown);
-      const contentChanged = site.lastHash !== null && newHash !== site.lastHash;
-      patch.lastHash = newHash;
-      patch.changed = contentChanged;
-      patch.changeDescription = null;
-
-      const cleanHistory = (site.history ?? []).filter((e) => e.classification !== "error");
-      patch.history = cleanHistory;
-
-      if (contentChanged && site.lastContent) {
-        const descRes = await fetch("/api/describe-change", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            oldValue: site.lastContent,
-            newValue: data.markdown,
-            watchTarget: "page content",
-            url: site.url,
-          }),
-        });
-        const descData = descRes.ok
-          ? ((await descRes.json()) as { description: string; classification: "major" | "minor"; emoji?: string })
-          : { description: "Page content changed.", classification: "minor" as const, emoji: undefined };
-        patch.changeDescription = descData.description;
+      if (
+        newChange &&
+        snapshot.change_description &&
+        (classification === "major" || classification === "minor")
+      ) {
         patch.history = [
           ...cleanHistory,
-          makeEntry(descData.description, descData.classification, site.lastContent ?? undefined, data.markdown, data.screenshot, descData.emoji),
+          makeEntry(
+            snapshot.change_description,
+            classification,
+            site.lastContent ?? undefined,
+            snapshot.markdown,
+            snapshot.screenshot_url,
+            snapshot.change_emoji ?? undefined,
+          ),
         ];
       }
 
-      void updateSite(site.id, patch);
       onUpdate(site.id, patch);
     } catch (err) {
       const error = err instanceof Error ? err.message : "fetch failed";
@@ -184,7 +170,6 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
         lastChecked: Date.now(),
         history: [...(site.history ?? []), makeEntry(error, "error")],
       };
-      void updateSite(site.id, patch);
       onUpdate(site.id, patch);
     } finally {
       setSniffing((prev) => {

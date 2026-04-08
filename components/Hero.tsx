@@ -103,7 +103,7 @@ export default function Hero({ onAdd, onDemo, hasSites }: Props) {
             onClick={onDemo}
             className="text-[13px] font-mono text-[var(--blue)] hover:underline cursor-pointer bg-transparent border-none"
           >
-            Try with hellolingo.com →
+            Try with news.ycombinator.com →
           </button>
         )}
       </div>

@@ -22,7 +22,7 @@ this doc is the human-readable summary.
 - No-ops when input is empty
 
 **Demo**
-- "Try with hellolingo.com →" link shown when no sites are being watched
+- "Try with news.ycombinator.com →" link shown when no sites are being watched
 - Hidden once any site is added
 
 **Watch list header**
@@ -64,9 +64,9 @@ this doc is the human-readable summary.
 - Selected entry's screenshot shown in a panel to the right; clicking opens the full-screen modal
 
 **Fetch**
-- Clicking ↻ calls `POST /api/scrape` and then calls `onUpdate` with the result [`WatchedSites.test.tsx`]
-- Every fetch updates `lastChecked`; quiet fetches (first fetch, no change) add no history entry
-- Fetches with a change call `/api/describe-change` and log a major/minor entry [`WatchedSites.test.tsx`]
+- Clicking ↻ calls `POST /api/scrape` and then calls `onUpdate` with a patch derived from the returned `snapshot` [`WatchedSites.test.tsx`]
+- Every fetch updates `lastChecked`; quiet fetches (first fetch, no change, cached) add no history entry
+- When the server reports `newChange: true` with a major/minor classification, a history entry is appended using the snapshot's `change_description` [`WatchedSites.test.tsx`]
 - Failed fetches log an `"error"` classified entry with the error message as description; the `error` field is also set on the site [`WatchedSites.test.tsx`]
 
 ---
@@ -75,8 +75,9 @@ this doc is the human-readable summary.
 
 Supabase-backed. Each browser gets a Supabase anonymous session on first use;
 per-user `watches` rows join shared `pages` rows via RLS. URL + label are
-persisted; snapshot-derived fields (`lastHash`, `lastContent`, `lastScreenshot`,
-`history`, …) live in React state only until Phase 3 wires them to `snapshots`.
+persisted; `getSites()` hydrates `lastContent` / `lastHash` / `lastScreenshot` /
+`lastChecked` / `changeDescription` / `changed` from each page's `latest_snapshot_id`
+when one exists. `history` is still React-state-only.
 
 - `getSites()` returns `[]` when the current user has no watches [`db.test.ts`]
 - `addSite(url)` creates a watch (and upserts the shared page) and returns it [`db.test.ts`]
@@ -85,6 +86,8 @@ persisted; snapshot-derived fields (`lastHash`, `lastContent`, `lastScreenshot`,
 - `addSite` derives `label` from the hostname when the URL has no meaningful path slug [`db.test.ts`]
 - `addSite` initialises ephemeral fields (`lastHash`, `lastContent`, `lastScreenshot`, `history`) to null/empty defaults [`db.test.ts`]
 - `addSite` returns distinct ids for different URLs [`db.test.ts`]
+- `getSites` hydrates `lastContent`, `lastHash`, `changeDescription`, `changed` from the page's latest snapshot when one exists [`db.test.ts`]
+- `getSites` leaves ephemeral fields null when the page has no snapshot yet [`db.test.ts`]
 - `updateSite(id, { watchTarget })` persists `watch_target` on the watch row [`db.test.ts`]
 - `updateSite` silently ignores patch fields that only live in React state [`db.test.ts`]
 - `updateSite` with an unknown id is a no-op [`db.test.ts`]
@@ -96,10 +99,17 @@ persisted; snapshot-derived fields (`lastHash`, `lastContent`, `lastScreenshot`,
 
 ## API — `/api/scrape`
 
-- `POST` with `{ url }` returns `{ markdown, html, rawHtml, screenshot }` [`scrape.test.ts`]
+- `POST` with `{ url, force? }` returns `{ snapshot, cached, newChange }` where `snapshot` is a row from `snapshots` decorated with a public `screenshot_url` [`scrape.test.ts`]
 - Returns `400` when `url` is missing [`scrape.test.ts`]
 - Returns `400` for an invalid URL (non-parseable or non-http/https protocol) [`scrape.test.ts`]
 - Returns `500` when Firecrawl throws [`scrape.test.ts`]
+- **60-second dedup:** if the page was fetched within the last 60s, returns the existing latest snapshot with `cached: true` and no Firecrawl call [`scrape.test.ts`]
+- **`force: true`** bypasses the 60s dedup and triggers a fresh Firecrawl call [`scrape.test.ts`]
+- **Hash-equal short-circuit:** when a new fetch's content hash matches the previous snapshot, no new snapshot row is inserted; `last_fetched_at` is bumped and the existing snapshot is returned with `newChange: false` [`scrape.test.ts`]
+- **Hash-different:** a new snapshot row is inserted, `/api/describe-change` is called server-side to populate `change_description` / `change_classification` / `change_emoji`, and the response has `newChange: true` [`scrape.test.ts`]
+- **Screenshots** are downloaded from Firecrawl's CDN and uploaded to the `screenshots` Supabase Storage bucket; `snapshot.screenshot_url` is the public URL [`scrape.test.ts`]
+- URL normalization (trailing slash, host casing) dedups across callers [`scrape.test.ts`]
+- If `describe-change` throws, a fallback description is stored (`"Page content changed."`, classification `minor`) and the snapshot still inserts [`scrape.test.ts`]
 - Client-side: reads response as text before JSON parsing; maps `FUNCTION_INVOCATION_TIMEOUT` (HTTP 504) and `FUNCTION_INVOCATION_FAILED` (HTTP 502) to readable error messages
 
 ---
