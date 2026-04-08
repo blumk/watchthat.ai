@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import Nav from "@/components/Nav";
 
 describe("Nav", () => {
@@ -19,5 +19,28 @@ describe("Nav", () => {
     const link = screen.getByText("Pricing");
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute("href", "#pricing");
+  });
+
+  it("does not show My Watch List when hasSites is false", () => {
+    render(<Nav hasSites={false} />);
+    expect(screen.queryByText("My Watch List")).not.toBeInTheDocument();
+  });
+
+  it("shows My Watch List tab when hasSites is true", () => {
+    render(<Nav hasSites={true} view="home" onSwitchView={jest.fn()} />);
+    expect(screen.getByText("My Watch List")).toBeInTheDocument();
+  });
+
+  it("hides anchor links on watchlist view", () => {
+    render(<Nav hasSites={true} view="watchlist" onSwitchView={jest.fn()} />);
+    expect(screen.queryByText("How it works")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pricing")).not.toBeInTheDocument();
+  });
+
+  it("calls onSwitchView with watchlist when My Watch List is clicked from home", () => {
+    const onSwitchView = jest.fn();
+    render(<Nav hasSites={true} view="home" onSwitchView={onSwitchView} />);
+    fireEvent.click(screen.getByText("My Watch List"));
+    expect(onSwitchView).toHaveBeenCalledWith("watchlist");
   });
 });
