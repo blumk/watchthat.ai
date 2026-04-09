@@ -1,4 +1,4 @@
--- Watchthis Phase 1 schema: shared pages + snapshots, per-user watches.
+-- WatchThat Phase 1 schema: shared pages + snapshots, per-user watches.
 -- See plans/supabase-backend-phase-1.md for the full design.
 
 create extension if not exists "pgcrypto";
@@ -103,14 +103,12 @@ create policy "watches are deletable by their owner"
 -- (the service-role key bypasses RLS by design).
 
 -- ============================================================================
--- Storage: public-read screenshots bucket.
--- Writes are done via the service-role key from API routes.
+-- Storage: public screenshots bucket.
+-- Reads: served via the public CDN URL (bypasses RLS thanks to public=true);
+--        no SELECT policy on storage.objects, so clients cannot call .list()
+--        or otherwise enumerate the bucket.
+-- Writes: service-role key from API routes (bypasses RLS by design).
 -- ============================================================================
 insert into storage.buckets (id, name, public)
   values ('screenshots', 'screenshots', true)
   on conflict (id) do nothing;
-
-create policy "screenshots are readable by everyone"
-  on storage.objects for select
-  to anon, authenticated
-  using (bucket_id = 'screenshots');

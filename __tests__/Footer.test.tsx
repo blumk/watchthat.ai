@@ -5,7 +5,7 @@ describe("Footer", () => {
   it("renders the footer tagline", () => {
     render(<Footer />);
     expect(
-      screen.getByText("Watchthis – Web Change Monitor.")
+      screen.getByText("WatchThat – Web Change Monitor.")
     ).toBeInTheDocument();
   });
 

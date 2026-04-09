@@ -1,4 +1,4 @@
-# Watchthis — Supabase backend (Phase 1: data layer)
+# WatchThat — Supabase backend (Phase 1: data layer)
 
 ## Context
 

@@ -12,12 +12,12 @@ export default function Nav({ hasSites = false, view = "home", onSwitchView }: P
   return (
     <nav className="flex items-center justify-between max-w-[1080px] mx-auto px-6 py-5">
       <button
-        aria-label="Watchthis"
+        aria-label="WatchThat"
         onClick={() => onSwitchView?.("home")}
         className="flex items-center gap-2.5 text-[20px] font-extrabold tracking-tight text-[var(--t1)] bg-transparent border-none cursor-pointer p-0"
       >
         <DogLogo size={30} />
-        <span className="tracking-tight">Watch<span className="text-[var(--blue)]">this</span></span>
+        <span className="tracking-tight">Watch<span className="text-[var(--blue)]">That</span></span>
       </button>
       <div className="hidden sm:flex items-center gap-7 text-sm font-medium text-[var(--t2)]">
         <a

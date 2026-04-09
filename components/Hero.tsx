@@ -95,7 +95,7 @@ export default function Hero({ onAdd, onDemo, hasSites }: Props) {
       {/* Subtext + demo */}
       <div className="flex flex-col items-center gap-2">
         <p className="text-[13px] text-[var(--t3)] leading-relaxed max-w-[400px] mx-auto">
-          Paste a URL. Watchthis takes a snapshot, watches in the background, and
+          Paste a URL. WatchThat takes a snapshot, watches in the background, and
           barks when something changes.
         </p>
         {!hasSites && (
