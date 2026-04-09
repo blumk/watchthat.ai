@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { hashString } from "@/lib/hash";
 import { updateSite, removeSite } from "@/lib/storage";
 import type { WatchedSite, ChangeEntry } from "@/lib/storage";
+import ScreenshotModal from "./ScreenshotModal";
 
 function makeEntry(
   description: string,
@@ -197,20 +198,8 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
 
   return (
     <>
-      {/* Screenshot modal */}
       {modalScreenshot && (
-        <div
-          className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center cursor-zoom-out"
-          onClick={() => setModalScreenshot(null)}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={modalScreenshot}
-            alt="Full screenshot"
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
+        <ScreenshotModal src={modalScreenshot} onClose={() => setModalScreenshot(null)} />
       )}
 
       <section className="max-w-[1080px] mx-auto px-6 pb-16">
@@ -231,6 +220,9 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
             const hasExpandable = histEntries.length > 0 || !!panelScreenshot;
             const lastChange = histEntries.find(e => e.classification !== "quiet") ?? null;
             const subtitle = lastChange?.description ?? null;
+            const changeTime = lastChange?.timestamp ?? null;
+            const showBothTimes = changeTime !== null && site.lastChecked !== null
+              && Math.abs(site.lastChecked - changeTime) > 60_000;
 
             return (
               <div
@@ -274,13 +266,26 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
 
                   {/* Time + actions */}
                   <div className="shrink-0 flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[10px] font-mono text-[var(--t3)]">
-                      {status === "sniffing"
-                        ? SNIFF_LABELS[sniffPhase % SNIFF_LABELS.length]
-                        : status === "error"
-                        ? "Error"
-                        : timeAgo(site.lastChecked)}
-                    </span>
+                    {status === "sniffing" ? (
+                      <span className="text-[10px] font-mono text-[var(--t3)]">
+                        {SNIFF_LABELS[sniffPhase % SNIFF_LABELS.length]}
+                      </span>
+                    ) : status === "error" ? (
+                      <span className="text-[10px] font-mono text-[var(--t3)]">Error</span>
+                    ) : (
+                      <div className="flex flex-col items-end gap-0.5">
+                        {changeTime && (
+                          <span className="text-[10px] font-mono text-[var(--t3)]">
+                            {timeAgo(changeTime)}
+                          </span>
+                        )}
+                        {(!changeTime || showBothTimes) && site.lastChecked && (
+                          <span className={`text-[10px] font-mono text-[var(--t3)] ${showBothTimes ? "opacity-50" : ""}`}>
+                            ↻ {timeAgo(site.lastChecked)}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <button
                       aria-label="Fetch"
                       onClick={() => fetchSite(site)}
