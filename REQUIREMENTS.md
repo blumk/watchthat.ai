@@ -65,9 +65,8 @@ this doc is the human-readable summary.
 
 **Fetch**
 - Clicking ↻ calls `POST /api/scrape` and then calls `onUpdate` with the result [`WatchedSites.test.tsx`]
-- First fetch stores a baseline and logs a quiet "Initial snapshot taken." entry
-- Subsequent fetches with no change log a quiet "No changes detected." entry
-- Subsequent fetches with a change call `/api/describe-change` and log a major/minor entry
+- Every fetch updates `lastChecked`; quiet fetches (first fetch, no change) add no history entry
+- Fetches with a change call `/api/describe-change` and log a major/minor entry [`WatchedSites.test.tsx`]
 - Failed fetches log an `"error"` classified entry with the error message as description; the `error` field is also set on the site [`WatchedSites.test.tsx`]
 
 ---
