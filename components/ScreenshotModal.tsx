@@ -130,13 +130,13 @@ export default function ScreenshotModal({ src, alt = "Screenshot", onClose }: Pr
   const pct = Math.round(view.scale * 100);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/92 flex flex-col" onClick={onClose}>
-      {/* Zoomable image area */}
+    <div className="fixed inset-0 z-50 bg-black/92 flex flex-col">
+      {/* Zoomable image area — clicking the backdrop (not the image) closes */}
       <div
         ref={containerRef}
         className="flex-1 flex items-center justify-center overflow-hidden select-none"
         style={{ touchAction: "none" }}
-        onClick={e => e.stopPropagation()}
+        onClick={e => { if (!dragMoved.current && e.target === containerRef.current) onClose(); }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
