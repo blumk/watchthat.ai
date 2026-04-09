@@ -73,16 +73,17 @@ describe("WatchedSites", () => {
     expect(screen.getByText(/error/i)).toBeInTheDocument();
   });
 
-  it("calls onRemove when Remove button is clicked after expanding", () => {
+  it("calls onRemove when Remove button is clicked after expanding and opening edit", () => {
     const history = [{ id: "h1", timestamp: Date.now() - 5000, description: "Initial snapshot taken.", classification: "quiet" as const }];
     const onRemove = jest.fn();
     render(<WatchedSites sites={[makeSite({ history })]} onUpdate={jest.fn()} onRemove={onRemove} />);
-    fireEvent.click(screen.getByRole("button", { name: /show changelog/i }));
+    fireEvent.click(screen.getByText("example.com")); // expand card
+    fireEvent.click(screen.getByRole("button", { name: /edit/i })); // open edit
     fireEvent.click(screen.getByRole("button", { name: /remove/i }));
     expect(onRemove).toHaveBeenCalledWith("abc123");
   });
 
-  it("shows screenshot thumbnail button when lastScreenshot is present", () => {
+  it("shows screenshot thumbnail when lastScreenshot is present", () => {
     render(
       <WatchedSites
         sites={[makeSite({ lastScreenshot: "data:image/png;base64,abc" })]}
@@ -90,21 +91,21 @@ describe("WatchedSites", () => {
         onRemove={jest.fn()}
       />
     );
-    expect(screen.getAllByRole("button", { name: /open screenshot/i }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("img", { name: /screenshot of example\.com/i })).toBeInTheDocument();
   });
 
-  it("screenshot header button does not open modal when no screenshot is available", () => {
+  it("screenshot area does not open modal when card is collapsed", () => {
     render(
       <WatchedSites
-        sites={[makeSite({ lastScreenshot: null })]}
+        sites={[makeSite({ lastScreenshot: "data:image/png;base64,abc" })]}
         onUpdate={jest.fn()}
         onRemove={jest.fn()}
       />
     );
-    // Button still renders as the card header but has cursor-default and no-ops on click
-    const btn = screen.getByRole("button", { name: /open screenshot/i });
-    fireEvent.click(btn);
-    expect(screen.queryByRole("img", { name: /full screenshot/i })).not.toBeInTheDocument();
+    // Click the screenshot area while collapsed — should expand, not open modal
+    fireEvent.click(screen.getByRole("button", { name: /expand/i }));
+    // Modal would render a fixed overlay; it should not be present
+    expect(screen.queryByRole("button", { name: /close/i })).not.toBeInTheDocument();
   });
 
   it("renders all history entries in the scrollable list", () => {
@@ -115,7 +116,7 @@ describe("WatchedSites", () => {
     render(
       <WatchedSites sites={[makeSite({ history })]} onUpdate={jest.fn()} onRemove={jest.fn()} />
     );
-    fireEvent.click(screen.getByRole("button", { name: /show changelog/i }));
+    fireEvent.click(screen.getByText("example.com")); // expand card
     expect(screen.getByText("First change.")).toBeInTheDocument();
     expect(screen.getByText("Second change.")).toBeInTheDocument();
   });
@@ -128,7 +129,7 @@ describe("WatchedSites", () => {
     render(
       <WatchedSites sites={[makeSite({ history })]} onUpdate={jest.fn()} onRemove={jest.fn()} />
     );
-    fireEvent.click(screen.getByRole("button", { name: /show changelog/i }));
+    fireEvent.click(screen.getByText("example.com")); // expand card
     fireEvent.click(screen.getByText("First change."));
     expect(screen.getByText("First change.")).toBeInTheDocument();
   });
@@ -141,7 +142,7 @@ describe("WatchedSites", () => {
         onRemove={jest.fn()}
       />
     );
-    fireEvent.click(screen.getByRole("button", { name: /show changelog/i }));
+    fireEvent.click(screen.getByText("example.com")); // expand card
     expect(screen.getByText("Initial snapshot taken.")).toBeInTheDocument();
   });
 

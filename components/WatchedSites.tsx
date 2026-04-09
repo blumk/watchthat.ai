@@ -11,13 +11,15 @@ function makeEntry(
   classification: "major" | "minor" | "quiet" | "error",
   oldValue?: string,
   newValue?: string,
-  screenshot?: string | null
+  screenshot?: string | null,
+  emoji?: string
 ): ChangeEntry {
   return {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     timestamp: Date.now(),
     description,
     classification,
+    ...(emoji ? { emoji } : {}),
     ...(oldValue !== undefined ? { oldValue } : {}),
     ...(newValue !== undefined ? { newValue } : {}),
     ...(screenshot !== undefined ? { screenshot } : {}),
@@ -68,7 +70,9 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   const [selectedEntry, setSelectedEntry] = useState<Record<string, number>>({});
   const [modalScreenshot, setModalScreenshot] = useState<string | null>(null);
   const [sniffPhase, setSniffPhase] = useState(0);
-  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [editingCard, setEditingCard] = useState<string | null>(null);
+  const [editUrl, setEditUrl] = useState("");
   const autoFetched = useRef<Set<string>>(new Set());
 
   // Cycle sniff label while any fetch is in progress
@@ -127,11 +131,16 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
         screenshot: string | null;
       };
 
+      // Extract page title from first markdown heading
+      const titleMatch = data.markdown.match(/^#\s+(.+)$/m);
+      const pageTitle = titleMatch ? titleMatch[1].trim().replace(/\s+/g, " ") : null;
+
       const patch: Partial<WatchedSite> = {
         lastContent: data.markdown,
         lastScreenshot: data.screenshot,
         lastChecked: Date.now(),
         error: null,
+        ...(pageTitle ? { label: pageTitle } : {}),
       };
 
       // Hash full markdown
@@ -153,12 +162,12 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
           }),
         });
         const descData = descRes.ok
-          ? ((await descRes.json()) as { description: string; classification: "major" | "minor" })
-          : { description: "Page content changed.", classification: "minor" as const };
+          ? ((await descRes.json()) as { description: string; classification: "major" | "minor"; emoji?: string })
+          : { description: "Page content changed.", classification: "minor" as const, emoji: undefined };
         patch.changeDescription = descData.description;
         patch.history = [
           ...(site.history ?? []),
-          makeEntry(descData.description, descData.classification, site.lastContent ?? undefined, data.markdown, data.screenshot),
+          makeEntry(descData.description, descData.classification, site.lastContent ?? undefined, data.markdown, data.screenshot, descData.emoji),
         ];
       }
 
@@ -188,12 +197,30 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   }
 
   function toggleCard(id: string) {
-    setExpandedCards((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setExpandedCard(prev => prev === id ? null : id);
+    setEditingCard(null);
+  }
+
+  function openEdit(site: WatchedSite) {
+    setEditingCard(site.id);
+    setEditUrl(site.url);
+  }
+
+  function handleUrlChange(site: WatchedSite) {
+    const raw = editUrl.trim();
+    if (!raw) return;
+    const url = raw.match(/^https?:\/\//) ? raw : `https://${raw}`;
+    try { new URL(url); } catch { return; } // invalid URL — ignore
+    const label = new URL(url).hostname.replace(/^www\./, "");
+    const patch: Partial<WatchedSite> = {
+      url, label,
+      lastHash: null, lastContent: null, lastChecked: null,
+      changed: false, error: null, changeDescription: null,
+    };
+    void updateSite(site.id, patch);
+    onUpdate(site.id, patch);
+    setEditingCard(null);
+    fetchSite({ ...site, ...patch });
   }
 
   return (
@@ -203,7 +230,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
       )}
 
       <section className="max-w-[1080px] mx-auto px-6 pb-16">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
           {sites.map((site) => {
             const status = deriveStatus(site, sniffing.has(site.id));
             const dotColor =
@@ -216,7 +243,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
             const histIdx = Math.min(selectedEntry[site.id] ?? 0, Math.max(0, histEntries.length - 1));
             const histEntry = histEntries[histIdx] ?? null;
             const panelScreenshot = histEntry?.screenshot ?? site.lastScreenshot;
-            const isExpanded = expandedCards.has(site.id);
+            const isExpanded = expandedCard === site.id;
             const hasExpandable = histEntries.length > 0 || !!panelScreenshot;
             const lastChange = histEntries.find(e => e.classification !== "quiet") ?? null;
             const subtitle = lastChange?.description ?? null;
@@ -227,13 +254,22 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
             return (
               <div
                 key={site.id}
-                className="group bg-[var(--bg2)] border border-[var(--bdr)] hover:border-[var(--t3)] rounded-2xl overflow-hidden transition-colors flex flex-col"
+                onClick={() => toggleCard(site.id)}
+                className="group bg-[var(--bg2)] border border-[var(--bdr)] hover:border-[var(--t3)] rounded-2xl overflow-hidden transition-colors flex flex-col cursor-pointer"
               >
-                {/* Screenshot header — click opens modal */}
-                <button
-                  aria-label="Open screenshot"
-                  onClick={() => panelScreenshot && setModalScreenshot(panelScreenshot)}
-                  className={`relative w-full aspect-video overflow-hidden p-0 border-none bg-[var(--bg3)] ${panelScreenshot ? "cursor-zoom-in" : "cursor-default"}`}
+                {/* Screenshot header — click opens modal only when expanded */}
+                <div
+                  role="button"
+                  aria-label={isExpanded && panelScreenshot ? "Open screenshot" : isExpanded ? "Collapse" : "Expand"}
+                  onClick={e => {
+                    e.stopPropagation();
+                    if (isExpanded && panelScreenshot) {
+                      setModalScreenshot(panelScreenshot);
+                    } else {
+                      toggleCard(site.id);
+                    }
+                  }}
+                  className={`relative w-full aspect-video overflow-hidden bg-[var(--bg3)] ${isExpanded && panelScreenshot ? "cursor-zoom-in" : "cursor-pointer"}`}
                 >
                   {panelScreenshot && (
                     /* eslint-disable-next-line @next/next/no-img-element */
@@ -248,15 +284,27 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                     className="absolute top-2 right-2 w-2 h-2 rounded-full shadow"
                     style={{ background: dotColor }}
                   />
-                </button>
+                </div>
 
                 {/* Card footer */}
                 <div className="flex items-start gap-2 px-3 py-2.5">
                   {/* Label + subtitle */}
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-mono text-[var(--t1)] truncate block leading-snug">
-                      {site.label}
-                    </span>
+                    {isExpanded ? (
+                      <a
+                        href={site.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="text-sm font-mono text-[var(--t1)] hover:text-[var(--blue)] truncate block leading-snug transition-colors"
+                      >
+                        {site.label} ↗
+                      </a>
+                    ) : (
+                      <span className="text-sm font-mono text-[var(--t1)] truncate block leading-snug">
+                        {site.label}
+                      </span>
+                    )}
                     {!isExpanded && subtitle && (
                       <span className="text-xs font-mono text-[var(--t3)] truncate block mt-0.5">
                         {subtitle}
@@ -288,21 +336,12 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                     )}
                     <button
                       aria-label="Fetch"
-                      onClick={() => fetchSite(site)}
+                      onClick={e => { e.stopPropagation(); fetchSite(site); }}
                       disabled={sniffing.has(site.id)}
                       className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--t3)] hover:text-[var(--t1)] text-sm leading-none cursor-pointer bg-transparent border-none disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       ↻
                     </button>
-                    {hasExpandable && (
-                      <button
-                        aria-label={isExpanded ? "Hide changelog" : "Show changelog"}
-                        onClick={() => toggleCard(site.id)}
-                        className="text-[var(--t3)] hover:text-[var(--t1)] transition-colors text-xs leading-none cursor-pointer bg-transparent border-none"
-                      >
-                        {isExpanded ? "▴" : "▾"}
-                      </button>
-                    )}
                   </div>
                 </div>
 
@@ -316,19 +355,24 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                         : entry.classification === "quiet" ? "var(--green)"
                         : entry.classification === "error" ? "var(--red)"
                         : "var(--t3)";
+                      const isQuiet = entry.classification === "quiet";
                       return (
                         <div
                           key={entry.id}
-                          onClick={() => setSelectedEntry((p) => ({ ...p, [site.id]: idx }))}
+                          onClick={e => { e.stopPropagation(); setSelectedEntry((p) => ({ ...p, [site.id]: idx })); }}
                           className={`px-3 py-2 cursor-pointer border-b border-[var(--bdr)] last:border-b-0 transition-colors ${
                             isSelected ? "bg-[var(--bg3)]" : "hover:bg-[var(--bg)]"
-                          }`}
+                          } ${isQuiet ? "opacity-40" : ""}`}
                         >
                           <div className="flex items-start gap-2 min-w-0">
-                            <span
-                              className="shrink-0 w-1.5 h-1.5 rounded-full mt-1"
-                              style={{ background: entryColor }}
-                            />
+                            {entry.emoji ? (
+                              <span className="shrink-0 text-sm leading-none mt-px">{entry.emoji}</span>
+                            ) : (
+                              <span
+                                className="shrink-0 w-1.5 h-1.5 rounded-full mt-1.5"
+                                style={{ background: entryColor }}
+                              />
+                            )}
                             <span className="text-xs text-[var(--t2)] flex-1 leading-snug">
                               {entry.description}
                             </span>
@@ -350,16 +394,73 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                   </div>
                 )}
 
-                {/* Remove — shown in expanded footer */}
-                {isExpanded && (
-                  <div className="border-t border-[var(--bdr)] px-3 py-2 flex justify-end mt-auto">
-                    <button
-                      aria-label="Remove"
-                      onClick={() => handleRemove(site.id)}
-                      className="text-xs font-mono text-[var(--t3)] hover:text-[var(--red)] transition-colors cursor-pointer bg-transparent border-none"
+                {/* Expand / collapse bar at bottom */}
+                {hasExpandable && (
+                  <div className="border-t border-[var(--bdr)] flex items-center justify-between px-3 py-1.5 mt-auto">
+                    <span
+                      className="text-[10px] font-mono text-[var(--t3)] select-none"
                     >
-                      Remove website
-                    </button>
+                      {isExpanded ? "changelog" : "changelog"}
+                    </span>
+                    <span className="text-[var(--t3)] text-xs leading-none select-none">
+                      {isExpanded ? "▲" : "▼"}
+                    </span>
+                  </div>
+                )}
+
+                {/* Edit / remove footer — shown when expanded */}
+                {isExpanded && (
+                  <div
+                    className="border-t border-[var(--bdr)] px-3 py-2"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {editingCard === site.id ? (
+                      <>
+                        <div className="flex gap-2 mb-2">
+                          <input
+                            value={editUrl}
+                            onChange={e => setEditUrl(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") handleUrlChange(site);
+                              if (e.key === "Escape") setEditingCard(null);
+                            }}
+                            autoFocus
+                            className="flex-1 bg-[var(--bg)] border border-[var(--bdr)] focus:border-[var(--blue)] rounded-lg px-2 py-1 text-xs font-mono text-[var(--t1)] outline-none transition-colors"
+                          />
+                          <button
+                            onClick={() => handleUrlChange(site)}
+                            className="text-xs font-mono text-[var(--blue)] hover:brightness-110 cursor-pointer bg-transparent border-none"
+                          >
+                            Save
+                          </button>
+                        </div>
+                        <div className="flex justify-between">
+                          <button
+                            onClick={() => setEditingCard(null)}
+                            className="text-xs font-mono text-[var(--t3)] hover:text-[var(--t1)] transition-colors cursor-pointer bg-transparent border-none"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            aria-label="Remove"
+                            onClick={() => handleRemove(site.id)}
+                            className="text-xs font-mono text-[var(--t3)] hover:text-[var(--red)] transition-colors cursor-pointer bg-transparent border-none"
+                          >
+                            Remove website
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex justify-end">
+                        <button
+                          aria-label="Edit"
+                          onClick={() => openEdit(site)}
+                          className="text-xs font-mono text-[var(--t3)] hover:text-[var(--t1)] transition-colors cursor-pointer bg-transparent border-none"
+                        >
+                          Edit ✎
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

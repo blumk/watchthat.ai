@@ -5,6 +5,7 @@ export interface ChangeEntry {
   timestamp: number;
   description: string;
   classification: "major" | "minor" | "quiet" | "error";
+  emoji?: string;
   oldValue?: string;
   newValue?: string;
   screenshot?: string | null;
@@ -63,11 +64,58 @@ export async function getSites(): Promise<WatchedSite[]> {
   return db.getAll("sites");
 }
 
+// Structural/locale path segments to skip when extracting a human-readable label
+const SKIP_SEGMENTS = new Set([
+  "app", "apps", "store", "product", "products", "item", "items",
+  "detail", "details", "page", "pages", "view", "show", "get",
+  "us", "uk", "en", "fr", "de", "es", "it", "jp", "au", "ca",
+  "www", "web", "m",
+]);
+
+function extractLabel(url: string): string {
+  const hostname = new URL(url).hostname.replace(/^www\./, "");
+  const segments = new URL(url).pathname.split("/").filter(Boolean);
+
+  // Score each segment: prefer longer slugs with hyphens/underscores (multi-word)
+  let best = "";
+  let bestScore = -1;
+  for (const seg of segments) {
+    // Skip pure numbers, id\d+ patterns, locale/structural words, and very short segments
+    if (/^\d+$/.test(seg)) continue;
+    if (/^id\d+$/i.test(seg)) continue;
+    if (seg.length < 3) continue;
+    const lower = seg.toLowerCase();
+    if (SKIP_SEGMENTS.has(lower)) continue;
+
+    const wordCount = (seg.match(/[-_]/g) ?? []).length + 1;
+    const score = seg.length + wordCount * 3;
+    if (score > bestScore) {
+      bestScore = score;
+      best = seg;
+    }
+  }
+
+  if (!best) return hostname;
+
+  // Convert slug to title case, keeping common prepositions/articles lowercase (unless first)
+  const LOWERCASE_WORDS = new Set(["a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "by", "with"]);
+  const words = best.replace(/[-_]/g, " ").split(" ");
+  if (words.length < 2) return hostname; // single-word path — not meaningful enough
+
+  const titled = words.map((w, i) =>
+    i === 0 || !LOWERCASE_WORDS.has(w.toLowerCase())
+      ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+      : w.toLowerCase()
+  ).join(" ");
+
+  return titled;
+}
+
 export async function addSite(rawUrl: string): Promise<WatchedSite> {
   const url = rawUrl.match(/^https?:\/\//) ? rawUrl : `https://${rawUrl}`;
   const existing = (await getSites()).find((s) => s.url === url);
   if (existing) return existing;
-  const label = new URL(url).hostname;
+  const label = extractLabel(url);
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const site: WatchedSite = {
     id,
