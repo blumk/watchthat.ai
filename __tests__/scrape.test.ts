@@ -156,23 +156,29 @@ describe("POST /api/scrape", () => {
     expect(MockFirecrawlApp.mock.results.length).toBeGreaterThan(before);
   });
 
-  it("hash-equal re-fetch bumps last_fetched_at without inserting a new snapshot", async () => {
+  it("hash-equal re-fetch still inserts a new snapshot (fresh screenshot) with quiet classification and no describeChange call", async () => {
     await POST(makeRequest({ url: "https://example.com" }));
-    // Age the page past the dedup window.
-    state.pages[0].last_fetched_at = new Date(Date.now() - 120_000).toISOString();
+    // Age past the 5-min dedup window.
+    state.pages[0].last_fetched_at = new Date(Date.now() - 600_000).toISOString();
     const before = state.pages[0].last_fetched_at;
 
     const res = await POST(makeRequest({ url: "https://example.com" }));
     const body = await res.json();
+    expect(res.status).toBe(200);
     expect(body.cached).toBe(false);
-    expect(state.snapshots).toHaveLength(1); // unchanged
+    expect(body.newChange).toBe(false);
+    expect(state.snapshots).toHaveLength(2);
+    expect(body.snapshot.change_classification).toBe("quiet");
+    expect(body.snapshot.change_description).toBeNull();
+    expect(body.snapshot.content_hash).toBe(state.snapshots[0].content_hash);
     expect(state.pages[0].last_fetched_at).not.toBe(before);
+    expect(state.pages[0].latest_snapshot_id).toBe(body.snapshot.id);
     expect(mockDescribeChange).not.toHaveBeenCalled();
   });
 
   it("hash-different re-fetch inserts a new snapshot with change description", async () => {
     await POST(makeRequest({ url: "https://example.com" }));
-    state.pages[0].last_fetched_at = new Date(Date.now() - 120_000).toISOString();
+    state.pages[0].last_fetched_at = new Date(Date.now() - 600_000).toISOString();
     mockFirecrawl("# Hello world — updated");
 
     const res = await POST(makeRequest({ url: "https://example.com" }));
@@ -196,7 +202,7 @@ describe("POST /api/scrape", () => {
   it("falls back to a generic description if describeChange throws", async () => {
     mockDescribeChange.mockRejectedValueOnce(new Error("claude down"));
     await POST(makeRequest({ url: "https://example.com" }));
-    state.pages[0].last_fetched_at = new Date(Date.now() - 120_000).toISOString();
+    state.pages[0].last_fetched_at = new Date(Date.now() - 600_000).toISOString();
     mockFirecrawl("# Updated");
 
     const res = await POST(makeRequest({ url: "https://example.com" }));
