@@ -1,0 +1,47 @@
+import { NextResponse } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
+
+export async function POST(request: Request) {
+  const body = await request.json().catch(() => ({}));
+  const { url, markdown } = body as { url?: string; markdown?: string };
+
+  if (!url || !markdown) {
+    return NextResponse.json(
+      { error: "url and markdown are required" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const message = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 512,
+      messages: [
+        {
+          role: "user",
+          content: `You are helping a user set up monitoring for a website.\n\nURL: ${url}\n\nPage content (markdown):\n${markdown.slice(0, 3000)}\n\nReturn a JSON object with:\n- "siteType": a short 2-4 word label describing what this site is (e.g. "E-commerce product page", "News website", "Job listing", "Company about page")\n- "options": an array of exactly 2 specific, useful things to monitor on this site. Each must be an object {"label": "short human label (3-5 words)", "watchTarget": "precise description for AI extraction"}. Be concrete and specific to the actual content on this page. Good examples: {"label": "Pro plan price", "watchTarget": "the monthly price of the Pro plan"}, {"label": "Top news headline", "watchTarget": "the top breaking news headline"}, {"label": "CEO name", "watchTarget": "the name of the CEO or company leader"}\n\nReturn only the JSON object.`,
+        },
+      ],
+    });
+
+    const raw =
+      message.content[0]?.type === "text" ? message.content[0].text.trim() : "";
+    const text = raw
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/, "")
+      .trim();
+    const parsed = JSON.parse(text) as {
+      siteType?: string;
+      options?: Array<{ label: string; watchTarget: string }>;
+    };
+
+    return NextResponse.json({
+      siteType: typeof parsed.siteType === "string" ? parsed.siteType : "Website",
+      options: Array.isArray(parsed.options) ? parsed.options.slice(0, 3) : [],
+    });
+  } catch (err) {
+    console.error("[analyze] error", err);
+    return NextResponse.json({ error: "analysis failed" }, { status: 500 });
+  }
+}

@@ -150,6 +150,9 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
       patch.changed = contentChanged;
       patch.changeDescription = null;
 
+      const cleanHistory = (site.history ?? []).filter((e) => e.classification !== "error");
+      patch.history = cleanHistory;
+
       if (contentChanged && site.lastContent) {
         const descRes = await fetch("/api/describe-change", {
           method: "POST",
@@ -166,7 +169,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
           : { description: "Page content changed.", classification: "minor" as const, emoji: undefined };
         patch.changeDescription = descData.description;
         patch.history = [
-          ...(site.history ?? []),
+          ...cleanHistory,
           makeEntry(descData.description, descData.classification, site.lastContent ?? undefined, data.markdown, data.screenshot, descData.emoji),
         ];
       }
@@ -233,11 +236,6 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
           {sites.map((site) => {
             const status = deriveStatus(site, sniffing.has(site.id));
-            const dotColor =
-              status === "quiet" ? "var(--green)"
-              : status === "changed" ? "var(--red)"
-              : status === "error" ? "var(--t3)"
-              : "var(--blue)";
 
             const histEntries = [...(site.history ?? [])].reverse();
             const histIdx = Math.min(selectedEntry[site.id] ?? 0, Math.max(0, histEntries.length - 1));
@@ -248,9 +246,6 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
             const lastChange = histEntries.find(e => e.classification !== "quiet") ?? null;
             const subtitle = lastChange?.description ?? null;
             const changeTime = lastChange?.timestamp ?? null;
-            const showBothTimes = changeTime !== null && site.lastChecked !== null
-              && Math.abs(site.lastChecked - changeTime) > 60_000;
-
             return (
               <div
                 key={site.id}
@@ -279,11 +274,16 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                       className="absolute inset-0 w-full h-full object-cover object-top"
                     />
                   )}
-                  {/* Status dot */}
-                  <span
-                    className="absolute top-2 right-2 w-2 h-2 rounded-full shadow"
-                    style={{ background: dotColor }}
-                  />
+                  {/* Sniffing indicator */}
+                  {status === "sniffing" && (
+                    <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[var(--blue)] animate-pulse" />
+                  )}
+                  {/* Last-checked timestamp pill */}
+                  {status !== "sniffing" && site.lastChecked !== null && (
+                    <span className="absolute bottom-2 right-2 text-[9px] font-mono bg-black/50 text-white/60 px-1.5 py-0.5 rounded-md leading-none">
+                      {timeAgo(site.lastChecked)}
+                    </span>
+                  )}
                 </div>
 
                 {/* Card footer */}
@@ -320,20 +320,11 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                       </span>
                     ) : status === "error" ? (
                       <span className="text-[10px] font-mono text-[var(--t3)]">Error</span>
-                    ) : (
-                      <div className="flex flex-col items-end gap-0.5">
-                        {changeTime && (
-                          <span className="text-[10px] font-mono text-[var(--t3)]">
-                            {timeAgo(changeTime)}
-                          </span>
-                        )}
-                        {(!changeTime || showBothTimes) && site.lastChecked && (
-                          <span className={`text-[10px] font-mono text-[var(--t3)] ${showBothTimes ? "opacity-50" : ""}`}>
-                            ↻ {timeAgo(site.lastChecked)}
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    ) : changeTime && timeAgo(changeTime) !== timeAgo(site.lastChecked) ? (
+                      <span className="text-[10px] font-mono text-[var(--t3)]">
+                        {timeAgo(changeTime)}
+                      </span>
+                    ) : null}
                     <button
                       aria-label="Fetch"
                       onClick={e => { e.stopPropagation(); fetchSite(site); }}
@@ -397,12 +388,12 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                 {/* Expand / collapse bar at bottom */}
                 {hasExpandable && (
                   <div className="border-t border-[var(--bdr)] flex items-center justify-between px-3 py-1.5 mt-auto">
-                    <span
-                      className="text-[10px] font-mono text-[var(--t3)] select-none"
-                    >
-                      {isExpanded ? "changelog" : "changelog"}
-                    </span>
-                    <span className="text-[var(--t3)] text-xs leading-none select-none">
+                    {!isExpanded && (
+                      <span className="text-[10px] font-mono text-[var(--t3)] select-none">
+                        {histEntries.length > 0 ? "See history" : "See details"}
+                      </span>
+                    )}
+                    <span className={`text-[var(--t3)] text-xs leading-none select-none ${isExpanded ? "ml-auto" : ""}`}>
                       {isExpanded ? "▲" : "▼"}
                     </span>
                   </div>

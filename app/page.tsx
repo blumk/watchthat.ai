@@ -7,8 +7,10 @@ import HowItWorks from "@/components/HowItWorks";
 import Pricing from "@/components/Pricing";
 import Footer from "@/components/Footer";
 import WatchedSites from "@/components/WatchedSites";
-import { getSites, addSite, removeSite } from "@/lib/storage";
+import WatchSetup from "@/components/WatchSetup";
+import { getSites, addSite, updateSite, removeSite } from "@/lib/storage";
 import { EXAMPLE_SITE } from "@/lib/example-site";
+import { hashString } from "@/lib/hash";
 import type { WatchedSite } from "@/lib/storage";
 
 function AddBar({ onAdd }: { onAdd: (url: string) => void }) {
@@ -44,6 +46,7 @@ function AddBar({ onAdd }: { onAdd: (url: string) => void }) {
 export default function Home() {
   const [sites, setSites] = useState<WatchedSite[]>([]);
   const [view, setView] = useState<"home" | "watchlist">("home");
+  const [setupUrl, setSetupUrl] = useState<string | null>(null);
 
   useEffect(() => {
     getSites().then((loaded) => {
@@ -52,9 +55,32 @@ export default function Home() {
     });
   }, []);
 
-  async function handleAdd(url: string) {
-    const site = await addSite(url);
-    setSites((prev) => (prev.some((s) => s.id === site.id) ? prev : [...prev, site]));
+  function handleSetup(url: string) {
+    const normalized = url.match(/^https?:\/\//) ? url : `https://${url}`;
+    setSetupUrl(normalized);
+  }
+
+  async function handleAdd(
+    url: string,
+    opts?: { watchTarget?: string | null; refreshInterval?: number | null; scrapeData?: { markdown: string; screenshot: string | null } | null }
+  ) {
+    const site = await addSite(url, opts);
+    let finalSite: WatchedSite = site;
+    if (opts?.scrapeData) {
+      const { markdown, screenshot } = opts.scrapeData;
+      const titleMatch = markdown.match(/^#\s+(.+)$/m);
+      const patch: Partial<WatchedSite> = {
+        lastContent: markdown,
+        lastScreenshot: screenshot,
+        lastHash: hashString(markdown),
+        lastChecked: Date.now(),
+        ...(titleMatch ? { label: titleMatch[1].trim().replace(/\s+/g, " ") } : {}),
+      };
+      await updateSite(site.id, patch);
+      finalSite = { ...site, ...patch };
+    }
+    setSites((prev) => (prev.some((s) => s.id === finalSite.id) ? prev : [...prev, finalSite]));
+    setSetupUrl(null);
     setView("watchlist");
   }
 
@@ -87,12 +113,18 @@ export default function Home() {
       <Nav hasSites={hasSites} view={view} onSwitchView={setView} />
       {view === "watchlist" ? (
         <>
-          <AddBar onAdd={handleAdd} />
+          <AddBar onAdd={handleSetup} />
           <WatchedSites sites={sites} onUpdate={handleUpdate} onRemove={handleRemove} />
         </>
+      ) : setupUrl ? (
+        <WatchSetup
+          url={setupUrl}
+          onComplete={(url, opts) => handleAdd(url, opts)}
+          onCancel={() => setSetupUrl(null)}
+        />
       ) : (
         <>
-          <Hero onAdd={handleAdd} onDemo={handleDemo} hasSites={hasSites} />
+          <Hero onAdd={handleSetup} onDemo={handleDemo} hasSites={hasSites} />
           <HowItWorks />
           <Pricing />
           <Footer />

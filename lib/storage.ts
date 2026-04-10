@@ -25,6 +25,8 @@ export interface WatchedSite {
   changed: boolean;
   error: string | null;
   history: ChangeEntry[];
+  watchTarget: string | null;
+  refreshInterval: number | null; // seconds; stored for future auto-polling
 }
 
 interface WatchdogDB extends DBSchema {
@@ -111,7 +113,10 @@ function extractLabel(url: string): string {
   return titled;
 }
 
-export async function addSite(rawUrl: string): Promise<WatchedSite> {
+export async function addSite(
+  rawUrl: string,
+  opts?: { watchTarget?: string | null; refreshInterval?: number | null }
+): Promise<WatchedSite> {
   const url = rawUrl.match(/^https?:\/\//) ? rawUrl : `https://${rawUrl}`;
   const existing = (await getSites()).find((s) => s.url === url);
   if (existing) return existing;
@@ -131,6 +136,8 @@ export async function addSite(rawUrl: string): Promise<WatchedSite> {
     changed: false,
     error: null,
     history: [],
+    watchTarget: opts?.watchTarget ?? null,
+    refreshInterval: opts?.refreshInterval ?? null,
   };
   const db = await getDB();
   await db.put("sites", site);

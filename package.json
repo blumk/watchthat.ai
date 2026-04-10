@@ -14,6 +14,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.81.0",
+    "@copilotkit/react-core": "^1.55.1",
+    "@copilotkit/runtime": "^1.55.1",
     "@mendable/firecrawl-js": "^4.18.1",
     "idb": "^8.0.3",
     "next": "^15.1.0",
