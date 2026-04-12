@@ -73,6 +73,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [editingCard, setEditingCard] = useState<string | null>(null);
   const [editUrl, setEditUrl] = useState("");
+  const [downloading, setDownloading] = useState<string | null>(null);
   const autoFetched = useRef<Set<string>>(new Set());
 
   // Cycle sniff label while any fetch is in progress
@@ -197,6 +198,79 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   function handleRemove(id: string) {
     void removeSite(id);
     onRemove(id);
+  }
+
+  async function downloadSiteHistory(site: WatchedSite) {
+    setDownloading(site.id);
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+
+      function tsPrefix(ms: number) {
+        return new Date(ms).toISOString().replace("T", "_").replace(/:/g, "-").replace(/\.\d{3}Z$/, "");
+      }
+
+      // Manifest JSON (no screenshot blobs — those go in the folder)
+      const manifest = {
+        url: site.url,
+        label: site.label,
+        exportedAt: new Date().toISOString(),
+        entries: site.history.map((e) => ({
+          id: e.id,
+          timestamp: new Date(e.timestamp).toISOString(),
+          description: e.description,
+          classification: e.classification,
+          ...(e.emoji ? { emoji: e.emoji } : {}),
+          ...(e.oldValue !== undefined ? { oldValue: e.oldValue } : {}),
+          ...(e.newValue !== undefined ? { newValue: e.newValue } : {}),
+          ...(e.screenshot ? { screenshot: `screenshots/${tsPrefix(e.timestamp)}_${e.id}.png` } : {}),
+        })),
+      };
+      zip.file("history.json", JSON.stringify(manifest, null, 2));
+
+      // Helper: resolve a screenshot value to a Uint8Array
+      async function resolveImage(src: string): Promise<Uint8Array | null> {
+        if (src.startsWith("data:")) {
+          const base64 = src.split(",")[1];
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          return bytes;
+        }
+        try {
+          const res = await fetch(src);
+          if (!res.ok) return null;
+          return new Uint8Array(await res.arrayBuffer());
+        } catch {
+          return null;
+        }
+      }
+
+      // Screenshots per history entry
+      const shots = zip.folder("screenshots")!;
+      for (const entry of site.history) {
+        if (!entry.screenshot) continue;
+        const bytes = await resolveImage(entry.screenshot);
+        if (bytes) shots.file(`${tsPrefix(entry.timestamp)}_${entry.id}.png`, bytes);
+      }
+
+      // Latest screenshot (may not be in history if no change was detected yet)
+      if (site.lastScreenshot) {
+        const bytes = await resolveImage(site.lastScreenshot);
+        const prefix = site.lastChecked ? `${tsPrefix(site.lastChecked)}_` : "";
+        if (bytes) zip.file(`${prefix}latest.png`, bytes);
+      }
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${site.label.replace(/\s+/g, "-").toLowerCase()}-history.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(null);
+    }
   }
 
   function toggleCard(id: string) {
@@ -442,7 +516,15 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                         </div>
                       </>
                     ) : (
-                      <div className="flex justify-end">
+                      <div className="flex justify-between items-center">
+                        <button
+                          aria-label="Download history"
+                          onClick={() => downloadSiteHistory(site)}
+                          disabled={downloading === site.id}
+                          className="text-xs font-mono text-[var(--t3)] hover:text-[var(--t1)] transition-colors cursor-pointer bg-transparent border-none disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {downloading === site.id ? "Zipping…" : "Download ↓"}
+                        </button>
                         <button
                           aria-label="Edit"
                           onClick={() => openEdit(site)}
