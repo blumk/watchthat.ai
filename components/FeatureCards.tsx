@@ -2,7 +2,7 @@ const features = [
   {
     icon: "🔕",
     title: "Subscribe & forget",
-    desc: "Add a URL once. Watchdog monitors and barks only when something changes.",
+    desc: "Add a URL once. Watchthat monitors and barks only when something changes.",
   },
   {
     icon: "📝",

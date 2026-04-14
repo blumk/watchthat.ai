@@ -16,7 +16,7 @@ export default function Nav({ hasSites = false, view = "home", onSwitchView }: P
         className="flex items-center gap-2.5 text-[20px] font-extrabold tracking-tight text-[var(--t1)] bg-transparent border-none cursor-pointer p-0"
       >
         <DogLogo size={30} />
-        Watchdog
+        Watchthat
       </button>
       <div className="hidden sm:flex items-center gap-7 text-sm font-medium text-[var(--t2)]">
         <a
