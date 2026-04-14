@@ -17,6 +17,7 @@
     "@copilotkit/react-core": "^1.55.1",
     "@copilotkit/runtime": "^1.55.1",
     "@mendable/firecrawl-js": "^4.18.1",
+    "@vercel/analytics": "^2.0.1",
     "idb": "^8.0.3",
     "jszip": "^3.10.1",
     "next": "^15.1.0",

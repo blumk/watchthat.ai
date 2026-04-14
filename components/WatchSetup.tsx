@@ -27,6 +27,17 @@ type Phase =
   | "asking-interval"
   | "done";
 
+const SCRAPE_MESSAGES = [
+  "Fetching the page…",
+  "Loading content…",
+  "Rendering JavaScript…",
+  "Parsing the HTML…",
+  "Reading the DOM…",
+  "Scanning for content…",
+  "Analysing structure…",
+  "Almost there…",
+];
+
 const INTERVALS: IntervalOption[] = [
   { label: "Every hour", seconds: 3600 },
   { label: "Every 6 hours", seconds: 21600 },
@@ -57,11 +68,18 @@ export default function WatchSetup({ url, onComplete, onCancel }: Props) {
   const [watchTarget, setWatchTarget] = useState<string | null>(null);
   const [customInput, setCustomInput] = useState("");
   const [scrapeData, setScrapeData] = useState<{ markdown: string; screenshot: string | null } | null>(null);
+  const [scrapePhase, setScrapePhase] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
+
+  useEffect(() => {
+    if (phase !== "scraping" || !isTyping) return;
+    const id = setInterval(() => setScrapePhase((p) => p + 1), 2200);
+    return () => clearInterval(id);
+  }, [phase, isTyping]);
 
   function pushMsg(msg: Omit<Msg, "id">) {
     setMessages((prev) => [...prev, { ...msg, id: genId() }]);
@@ -279,7 +297,9 @@ export default function WatchSetup({ url, onComplete, onCancel }: Props) {
               🐕
             </div>
             <div className="px-4 py-3 rounded-2xl rounded-tl-sm bg-[var(--bg2)] border border-[var(--bdr)]">
-              <TypingDots />
+              {phase === "scraping"
+                ? <span className="text-sm text-[var(--t2)]">{SCRAPE_MESSAGES[scrapePhase % SCRAPE_MESSAGES.length]}</span>
+                : <TypingDots />}
             </div>
           </div>
         )}
