@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import * as Sentry from "@sentry/nextjs";
 
 export interface DescribeChangeInput {
   oldValue: string;
@@ -22,7 +23,10 @@ export async function describeChange({
   watchTarget,
   url,
 }: DescribeChangeInput): Promise<DescribeChangeResult> {
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const client = Sentry.instrumentAnthropicAiClient(
+    new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }),
+    { recordInputs: true, recordOutputs: true },
+  );
   const message = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 256,
