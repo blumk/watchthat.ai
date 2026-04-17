@@ -43,7 +43,7 @@ beforeEach(() => {
 describe("POST /api/analyze", () => {
   it("returns siteType and options for valid input", async () => {
     const res = await POST(
-      makeRequest({ url: "https://example.com/product", markdown: "# Product\n\n$49.99\n\nIn stock" })
+      makeRequest({ markdown: "# Product\n\n$49.99\n\nIn stock" })
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -78,20 +78,15 @@ describe("POST /api/analyze", () => {
         }) as unknown as InstanceType<typeof Anthropic>
     );
     const res = await POST(
-      makeRequest({ url: "https://news.example.com", markdown: "# Breaking News" })
+      makeRequest({ markdown: "# Breaking News" })
     );
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.siteType).toBe("News website");
   });
 
-  it("returns 400 when url is missing", async () => {
-    const res = await POST(makeRequest({ markdown: "some content" }));
-    expect(res.status).toBe(400);
-  });
-
   it("returns 400 when markdown is missing", async () => {
-    const res = await POST(makeRequest({ url: "https://example.com" }));
+    const res = await POST(makeRequest({}));
     expect(res.status).toBe(400);
   });
 
@@ -105,7 +100,7 @@ describe("POST /api/analyze", () => {
         }) as unknown as InstanceType<typeof Anthropic>
     );
     const res = await POST(
-      makeRequest({ url: "https://example.com", markdown: "content" })
+      makeRequest({ markdown: "content" })
     );
     expect(res.status).toBe(500);
   });
