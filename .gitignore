@@ -28,3 +28,6 @@ next-env.d.ts
 
 # Claude Code (per-user session state)
 .claude/
+
+# Sentry Config File
+.env.sentry-build-plugin
