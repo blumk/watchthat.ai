@@ -8,10 +8,17 @@ Sentry.init({
   dsn: "https://d3c2a0943ee5884a02e7e194f97342c4@o4511259471052801.ingest.us.sentry.io/4511259471970304",
 
   // Add optional integrations for additional features
-  integrations: [Sentry.replayIntegration()],
+  integrations: [
+    Sentry.replayIntegration(),
+    Sentry.browserProfilingIntegration(),
+  ],
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,
+
+  // Browser profiling — requires Document-Policy: js-profiling header (set in next.config.ts).
+  profileSessionSampleRate: 1.0,
+
   // Enable logs to be sent to Sentry
   enableLogs: true,
 

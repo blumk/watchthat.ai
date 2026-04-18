@@ -182,6 +182,7 @@ change log is consistent across clients watching the same page.
 - `app/global-error.tsx` reports root-layout / render errors via `Sentry.captureException` [untested]
 - `next.config.ts` is wrapped with `withSentryConfig` (source-map upload, widened client upload, automatic Vercel cron monitors). Client events go directly to Sentry ingestion — no tunnel route [untested]
 - Session Replay is enabled on the client (10% of sessions, 100% of error sessions) [untested]
+- **Profiling** — `sentry.server.config.ts` wires `nodeProfilingIntegration` with `profileSessionSampleRate: 1.0` and `profileLifecycle: "trace"` (profiles attach to active spans). Browser profiling is enabled via `browserProfilingIntegration` + `profileSessionSampleRate: 1.0`; `next.config.ts` sets `Document-Policy: js-profiling` header on every response so the browser's self-profiler can start. Edge runtime is not profiled (native bindings unavailable). [untested]
 - AI Monitoring: Anthropic clients in `lib/describe-change.ts` and `app/api/analyze/route.ts` are wrapped with `Sentry.instrumentAnthropicAiClient({ recordInputs: true, recordOutputs: true })`, producing `gen_ai.*` spans with prompts, responses, and token counts in Sentry traces [untested]
 - Source maps upload on production builds when `SENTRY_AUTH_TOKEN` is set (locally via `.env.sentry-build-plugin`, which is gitignored)
 
