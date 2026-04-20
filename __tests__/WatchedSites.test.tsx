@@ -1,6 +1,14 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import WatchedSites from "@/components/WatchedSites";
-import type { WatchedSite } from "@/lib/storage";
+import type { WatchedSite } from "@/lib/db";
+
+// Stub lib/db so component-level fire-and-forget writes don't try to reach
+// Supabase. The component also calls onUpdate/onRemove props, which is what
+// these tests actually assert against.
+jest.mock("@/lib/db", () => ({
+  updateSite: jest.fn().mockResolvedValue(undefined),
+  removeSite: jest.fn().mockResolvedValue(undefined),
+}));
 
 // Silence console.error for expected fetch errors
 beforeAll(() => jest.spyOn(console, "error").mockImplementation(() => {}));

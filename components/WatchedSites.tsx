@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { hashString } from "@/lib/hash";
-import { updateSite, removeSite } from "@/lib/storage";
-import type { WatchedSite, ChangeEntry } from "@/lib/storage";
+import { updateSite, removeSite } from "@/lib/db";
+import type { WatchedSite, ChangeEntry } from "@/lib/db";
 import ScreenshotModal from "./ScreenshotModal";
 
 function makeEntry(

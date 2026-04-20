@@ -25,3 +25,6 @@ yarn-error.log*
 
 # TypeScript
 next-env.d.ts
+
+# Claude Code (per-user session state)
+.claude/
