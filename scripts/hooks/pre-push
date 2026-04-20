@@ -1,0 +1,16 @@
+#!/bin/sh
+# Committed copy of the pre-push hook. Install with `scripts/install-hooks.sh`
+# (sets git config core.hooksPath scripts/hooks so new clones pick this up).
+set -e
+
+echo "▸ scan:secrets"
+pnpm scan:secrets
+
+echo "▸ lint"
+pnpm lint
+
+echo "▸ test"
+pnpm test:ci
+
+echo "▸ build"
+pnpm build

@@ -1,5 +1,5 @@
 {
-  "name": "watchdog",
+  "name": "watchthis",
   "version": "0.2.0",
   "private": true,
   "description": "Know when websites change.",
@@ -10,13 +10,16 @@
     "start": "next start",
     "test": "jest --watch",
     "test:ci": "NODE_ENV=test jest --ci",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "scan:secrets": "bash scripts/scan-secrets.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.81.0",
     "@copilotkit/react-core": "^1.55.1",
     "@copilotkit/runtime": "^1.55.1",
     "@mendable/firecrawl-js": "^4.18.1",
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.103.3",
     "@vercel/analytics": "^2.0.1",
     "idb": "^8.0.3",
     "jszip": "^3.10.1",

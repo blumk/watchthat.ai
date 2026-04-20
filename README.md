@@ -1,8 +1,8 @@
-# Watchdog
+# Watchthis
 
 **Know when websites change.**
 
-Watchdog is a website change monitoring tool. Paste a URL, Watchdog takes a snapshot of the page content, and barks when something changes.
+Watchthis is a website change monitoring tool. Paste a URL, Watchthis takes a snapshot of the page content, and barks when something changes.
 
 ## Stack
 
@@ -11,14 +11,47 @@ Watchdog is a website change monitoring tool. Paste a URL, Watchdog takes a snap
 - **Tailwind CSS** — utility-first styling + CSS variable theming
 - **Jest + React Testing Library** — TDD enforced via `prebuild` hook
 - **pnpm** — package manager
+- **Supabase** — Postgres + Auth + Storage (local via `supabase` CLI, prod on Supabase Cloud)
 - **Vercel** — zero-config deployment
 
 ## Getting Started
 
+Prerequisites: Node 20+, `pnpm`, Docker Desktop, and the [Supabase CLI](https://supabase.com/docs/guides/cli).
+
 ```bash
 pnpm install
-pnpm dev        # http://localhost:3000
+cp .env.example .env.local     # then fill in your API keys (see below)
+supabase start                  # boots local Postgres + Auth + Storage (Docker)
+pnpm dev                        # http://localhost:3000
 ```
+
+### Environment variables
+
+Copy `.env.example` to `.env.local` and fill in:
+
+| Var | Where to get it |
+|---|---|
+| `FIRECRAWL_API_KEY` | [firecrawl.dev](https://firecrawl.dev) |
+| `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) |
+| `NEXT_PUBLIC_SUPABASE_URL` | `supabase start` prints it (local: `http://127.0.0.1:54321`) |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `supabase start` prints it (client-safe) |
+| `SUPABASE_SECRET_KEY` | `supabase start` prints it (server-only, bypasses RLS — do NOT commit) |
+
+`.env.local` is git-ignored. For production, set these in Vercel → Project Settings → Environment Variables using your cloud values instead.
+
+### Local Supabase
+
+Daily dev loop:
+
+```bash
+supabase start        # once per boot — migrations auto-apply
+supabase db reset     # after editing a migration file
+supabase stop         # when you're done
+```
+
+Studio (DB browser + SQL editor): http://127.0.0.1:54323
+
+Migrations live in `supabase/migrations/`. Create a new one with `supabase migration new <name>`.
 
 ## Scripts
 
@@ -52,19 +85,20 @@ When adding a new component:
 ## Project Structure
 
 ```
-watchdog/
+watchthis/
 ├── app/
+│   ├── api/              # Route handlers (scrape, analyze, describe-change, …)
 │   ├── layout.tsx        # Root layout, metadata
 │   ├── page.tsx          # Home page
 │   └── globals.css       # CSS variables + Tailwind base
-├── components/
-│   ├── DogLogo.tsx       # SVG dog logo
-│   ├── Nav.tsx           # Top navigation
-│   ├── Hero.tsx          # Hero section + URL input
-│   ├── FeatureCards.tsx  # 4-up feature grid
-│   ├── HowItWorks.tsx    # 3-step explainer
-│   └── Footer.tsx        # Footer
-├── __tests__/            # Component tests (Jest + RTL)
+├── components/           # UI components (see files for details)
+├── lib/                  # App logic (storage, hashing, fixtures)
+├── utils/supabase/       # Supabase client factories (browser, server, middleware, service-role)
+├── middleware.ts         # Refreshes Supabase sessions on every request
+├── supabase/
+│   ├── config.toml       # Supabase CLI config
+│   └── migrations/       # Versioned SQL migrations
+├── __tests__/            # Component + route tests (Jest + RTL)
 ├── __mocks__/            # Jest module mocks
 ├── jest.config.js
 ├── jest.setup.ts
@@ -79,7 +113,7 @@ Dark/light mode is handled automatically via `prefers-color-scheme` and CSS cust
 
 ## Roadmap
 
-See `watchdog-prd-trd.docx` for the full product and technical spec. Short version:
+See `watchthis-prd-trd.md` for the full product and technical spec. Short version:
 
 - **V1.1** — Labels, URL validation, error retry, favicons
 - **V1.2** — Browser push notifications, service worker polling
@@ -90,11 +124,27 @@ See `watchdog-prd-trd.docx` for the full product and technical spec. Short versi
 
 ## Deployment
 
-Deploy to Vercel with zero config — connect the GitHub repo in the Vercel dashboard or run:
+### Vercel
+
+Connect the GitHub repo in the Vercel dashboard or run:
 
 ```bash
 npx vercel
 ```
+
+Set these env vars in **Project Settings → Environment Variables** (Production): `FIRECRAWL_API_KEY`, `ANTHROPIC_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` — using your **cloud** Supabase values, not the local ones.
+
+### Supabase (cloud)
+
+First-time setup for your cloud project:
+
+```bash
+supabase login
+supabase link --project-ref <your-project-ref>   # from the Supabase dashboard URL
+supabase db push                                  # applies all migrations to cloud
+```
+
+Re-run `supabase db push` after creating a new migration. Cloud URL + keys live in **Supabase Dashboard → Project Settings → API**.
 
 ## License
 

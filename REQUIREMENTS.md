@@ -1,6 +1,6 @@
 # Requirements
 
-Living specification of what Watchdog currently does. Updated whenever behaviour changes.
+Living specification of what Watchthis currently does. Updated whenever behaviour changes.
 Each requirement maps to one or more tests — the tests are the authoritative source of truth;
 this doc is the human-readable summary.
 
@@ -85,7 +85,7 @@ this doc is the human-readable summary.
 - `removeSite(id)` deletes the record [`storage.test.ts`]
 - `removeSite` with an unknown ID is a no-op [`storage.test.ts`]
 - `lastHtml` and `lastRawHtml` are stripped before writing; `lastScreenshot` and `ChangeEntry.screenshot` are persisted across sessions
-- Legacy `watchdog-sites-v1` localStorage data is migrated to IndexedDB on first open
+- Legacy `watchthis-sites-v1` localStorage data is migrated to IndexedDB on first open
 
 ---
 
@@ -120,7 +120,7 @@ this doc is the human-readable summary.
 
 ## Nav
 
-- Displays the "Watchdog" brand name [`Nav.test.tsx`]
+- Displays the "Watchthis" brand name [`Nav.test.tsx`]
 - "How it works" link points to `#how` (home view only) [`Nav.test.tsx`]
 - "Pricing" link points to `#pricing` (home view only) [`Nav.test.tsx`]
 - "My Watch List" tab hidden until first site is added [`Nav.test.tsx`]
