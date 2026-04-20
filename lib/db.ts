@@ -15,6 +15,7 @@ import { createClient } from "@/utils/supabase/client";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { Database } from "@/utils/supabase/database.types";
 import { normalizeUrl } from "@/lib/url";
+import { snapshotPublicUrl, type SnapshotRow } from "@/lib/snapshot";
 
 export interface ChangeEntry {
   id: string;
@@ -104,7 +105,12 @@ export function _setSessionForTests(
 type WatchRow = {
   id: string;
   watch_target: string | null;
-  pages: { id: string; url: string; label: string } | null;
+  pages: {
+    id: string;
+    url: string;
+    label: string;
+    latest_snapshot_id: string | null;
+  } | null;
 };
 
 function rowToSite(row: WatchRow): WatchedSite | null {
@@ -117,17 +123,49 @@ function rowToSite(row: WatchRow): WatchedSite | null {
   });
 }
 
+function applySnapshot(site: WatchedSite, snap: SnapshotRow): WatchedSite {
+  const changed =
+    snap.change_classification !== null && snap.change_classification !== "quiet";
+  return {
+    ...site,
+    lastContent: snap.markdown,
+    lastHash: snap.content_hash,
+    lastScreenshot: snapshotPublicUrl(snap.screenshot_path),
+    lastChecked: new Date(snap.fetched_at).getTime(),
+    changeDescription: snap.change_description,
+    changed,
+  };
+}
+
 export async function getSites(): Promise<WatchedSite[]> {
   const { client, user } = await ensureSession();
   const { data, error } = await client
     .from("watches")
-    .select("id, watch_target, pages(id, url, label)")
+    .select("id, watch_target, pages(id, url, label, latest_snapshot_id)")
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });
   if (error) throw error;
-  return ((data ?? []) as unknown as WatchRow[])
+  const watches = ((data ?? []) as unknown as WatchRow[])
     .map(rowToSite)
     .filter((s): s is WatchedSite => s !== null);
+  if (watches.length === 0) return watches;
+
+  // Hydrate each watch with its page's latest snapshot (shared-read, no RLS).
+  const snapshotIds = ((data ?? []) as unknown as WatchRow[])
+    .map((r) => r.pages?.latest_snapshot_id ?? null)
+    .filter((id): id is string => id !== null);
+  if (snapshotIds.length === 0) return watches;
+  const { data: snaps } = await client
+    .from("snapshots")
+    .select("*")
+    .in("id", snapshotIds);
+  const byId = new Map<string, SnapshotRow>();
+  for (const s of (snaps ?? []) as SnapshotRow[]) byId.set(s.id, s);
+  return watches.map((site, i) => {
+    const pageSnapId = (data as unknown as WatchRow[])[i].pages?.latest_snapshot_id;
+    const snap = pageSnapId ? byId.get(pageSnapId) : null;
+    return snap ? applySnapshot(site, snap) : site;
+  });
 }
 
 export async function addSite(

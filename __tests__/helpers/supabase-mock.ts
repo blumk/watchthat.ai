@@ -9,6 +9,8 @@ export interface FakePage {
   id: string;
   url: string;
   label: string;
+  last_fetched_at: string | null;
+  latest_snapshot_id: string | null;
 }
 
 export interface FakeWatch {
@@ -19,9 +21,31 @@ export interface FakeWatch {
   created_at: number;
 }
 
+export interface FakeSnapshot {
+  id: string;
+  page_id: string;
+  fetched_at: string;
+  content_hash: string;
+  markdown: string;
+  screenshot_path: string | null;
+  prev_snapshot_id: string | null;
+  change_description: string | null;
+  change_classification: "major" | "minor" | "quiet" | "error" | null;
+  change_emoji: string | null;
+}
+
+export interface FakeStorageObject {
+  bucket: string;
+  path: string;
+  bytes: Uint8Array;
+  contentType: string | null;
+}
+
 export interface FakeState {
   pages: FakePage[];
   watches: FakeWatch[];
+  snapshots: FakeSnapshot[];
+  storage: FakeStorageObject[];
   user: User;
   nextId: number;
 }
@@ -30,6 +54,8 @@ export function makeFakeState(userId = "test-user"): FakeState {
   return {
     pages: [],
     watches: [],
+    snapshots: [],
+    storage: [],
     user: { id: userId } as User,
     nextId: 1,
   };
@@ -44,12 +70,16 @@ function genId(state: FakeState, prefix: string): string {
 class Query {
   private op: "select" | "insert" | "update" | "delete" | "upsert" = "select";
   private filters: Array<{ col: string; val: unknown }> = [];
+  private inFilters: Array<{ col: string; vals: unknown[] }> = [];
   private payload: unknown = null;
   private orderCol: string | null = null;
   private orderAsc = true;
   private limitTo: number | null = null;
 
-  constructor(private state: FakeState, private table: "pages" | "watches") {}
+  constructor(
+    private state: FakeState,
+    private table: "pages" | "watches" | "snapshots",
+  ) {}
 
   select(_cols?: string) {
     this.op = this.op === "select" ? "select" : this.op;
@@ -76,6 +106,10 @@ class Query {
   }
   eq(col: string, val: unknown) {
     this.filters.push({ col, val });
+    return this;
+  }
+  in(col: string, vals: unknown[]) {
+    this.inFilters.push({ col, vals });
     return this;
   }
   order(col: string, opts?: { ascending?: boolean }) {
@@ -106,11 +140,19 @@ class Query {
   }
 
   private matches(row: Record<string, unknown>): boolean {
-    return this.filters.every((f) => row[f.col] === f.val);
+    if (!this.filters.every((f) => row[f.col] === f.val)) return false;
+    if (!this.inFilters.every((f) => f.vals.includes(row[f.col]))) return false;
+    return true;
+  }
+
+  private rowsForTable(): unknown[] {
+    if (this.table === "pages") return this.state.pages;
+    if (this.table === "watches") return this.state.watches;
+    return this.state.snapshots;
   }
 
   private async resolve(): Promise<{ data: unknown; error: unknown }> {
-    const rows = this.table === "pages" ? this.state.pages : this.state.watches;
+    const rows = this.rowsForTable();
     try {
       switch (this.op) {
         case "select": {
@@ -143,6 +185,8 @@ class Query {
               id: genId(this.state, "page"),
               url: row.url as string,
               label: row.label as string,
+              last_fetched_at: null,
+              latest_snapshot_id: null,
             };
             this.state.pages.push(created);
             return { data: [created], error: null };
@@ -160,6 +204,24 @@ class Query {
               created_at: Date.now(),
             };
             this.state.watches.push(created);
+            return { data: [created], error: null };
+          }
+          if (this.table === "snapshots") {
+            const created: FakeSnapshot = {
+              id: genId(this.state, "snap"),
+              page_id: row.page_id as string,
+              fetched_at:
+                (row.fetched_at as string | undefined) ?? new Date().toISOString(),
+              content_hash: row.content_hash as string,
+              markdown: row.markdown as string,
+              screenshot_path: (row.screenshot_path as string | null) ?? null,
+              prev_snapshot_id: (row.prev_snapshot_id as string | null) ?? null,
+              change_description: (row.change_description as string | null) ?? null,
+              change_classification:
+                (row.change_classification as FakeSnapshot["change_classification"]) ?? null,
+              change_emoji: (row.change_emoji as string | null) ?? null,
+            };
+            this.state.snapshots.push(created);
             return { data: [created], error: null };
           }
           return { data: null, error: { message: "unknown table" } };
@@ -191,7 +253,7 @@ class Query {
           const updated: Record<string, unknown>[] = [];
           for (const r of rows) {
             if (this.matches(r as unknown as Record<string, unknown>)) {
-              Object.assign(r, patch);
+              Object.assign(r as object, patch);
               updated.push(r as unknown as Record<string, unknown>);
             }
           }
@@ -204,6 +266,13 @@ class Query {
               (r) => !this.matches(r as unknown as Record<string, unknown>),
             );
             return { data: { removed: before - this.state.pages.length }, error: null };
+          }
+          if (this.table === "snapshots") {
+            const before = this.state.snapshots.length;
+            this.state.snapshots = this.state.snapshots.filter(
+              (r) => !this.matches(r as unknown as Record<string, unknown>),
+            );
+            return { data: { removed: before - this.state.snapshots.length }, error: null };
           }
           const before = this.state.watches.length;
           this.state.watches = this.state.watches.filter(
@@ -222,7 +291,41 @@ class Query {
 
 export function makeFakeClient(state: FakeState) {
   return {
-    from: (table: "pages" | "watches") => new Query(state, table),
+    from: (table: "pages" | "watches" | "snapshots") => new Query(state, table),
+    storage: {
+      from: (bucket: string) => ({
+        upload: async (
+          path: string,
+          data: ArrayBuffer | Uint8Array | Blob,
+          opts?: { contentType?: string; upsert?: boolean },
+        ) => {
+          const bytes =
+            data instanceof Uint8Array
+              ? data
+              : data instanceof ArrayBuffer
+              ? new Uint8Array(data)
+              : new Uint8Array(await (data as Blob).arrayBuffer());
+          const existingIdx = state.storage.findIndex(
+            (o) => o.bucket === bucket && o.path === path,
+          );
+          const obj: FakeStorageObject = {
+            bucket,
+            path,
+            bytes,
+            contentType: opts?.contentType ?? null,
+          };
+          if (existingIdx >= 0) {
+            if (!opts?.upsert) {
+              return { data: null, error: { message: "already exists" } };
+            }
+            state.storage[existingIdx] = obj;
+          } else {
+            state.storage.push(obj);
+          }
+          return { data: { path }, error: null };
+        },
+      }),
+    },
     auth: {
       getSession: async () => ({
         data: { session: { user: state.user, access_token: "fake-token" } },
@@ -255,6 +358,8 @@ export function installFetchMock(state: FakeState) {
           id: genId(state, "page"),
           url: body.url,
           label: extractLabel(body.url),
+          last_fetched_at: null,
+          latest_snapshot_id: null,
         };
         state.pages.push(page);
       }

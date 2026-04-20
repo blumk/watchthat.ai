@@ -68,7 +68,7 @@ Watchthis fills the gap: a fast, focused, zero-configuration tool. Paste a URL, 
 | Persistent storage | Site configs, hashes, and change history persist across sessions via IndexedDB. | P0 |
 | Status system | Four states: sniffing, quiet, changed, error. Status derived at runtime, never persisted. | P0 |
 | Remove site | Remove button shown at the bottom of an expanded card (or inline for error sites with no content). | P1 |
-| Demo mode | "Try with hellolingo.com →" button pre-loads an example site when no sites are watched. | P1 |
+| Demo mode | "Try with news.ycombinator.com →" button pre-loads an example site when no sites are watched. | P1 |
 | Responsive design | Fully responsive. Dark mode default; light mode via `prefers-color-scheme`. | P1 |
 
 #### 5.2 V2 (Planned)

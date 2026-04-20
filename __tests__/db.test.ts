@@ -35,6 +35,41 @@ describe("getSites", () => {
   it("returns an empty array when the user has no watches", async () => {
     expect(await getSites()).toEqual([]);
   });
+
+  it("hydrates lastContent / lastHash / changed from the latest snapshot", async () => {
+    const site = await addSite("https://example.com");
+    // Simulate a /api/scrape run: insert a snapshot and point the page at it.
+    const snap = {
+      id: "snap-test-1",
+      page_id: state.pages[0].id,
+      fetched_at: new Date().toISOString(),
+      content_hash: "abc123",
+      markdown: "# Hello",
+      screenshot_path: "example/shot.png",
+      prev_snapshot_id: null,
+      change_description: "Price dropped from $99 to $79.",
+      change_classification: "major" as const,
+      change_emoji: "💰",
+    };
+    state.snapshots.push(snap);
+    state.pages[0].latest_snapshot_id = snap.id;
+
+    const sites = await getSites();
+    expect(sites).toHaveLength(1);
+    expect(sites[0].id).toBe(site.id);
+    expect(sites[0].lastContent).toBe("# Hello");
+    expect(sites[0].lastHash).toBe("abc123");
+    expect(sites[0].changeDescription).toBe("Price dropped from $99 to $79.");
+    expect(sites[0].changed).toBe(true);
+  });
+
+  it("leaves ephemeral fields null when the page has no snapshot yet", async () => {
+    await addSite("https://fresh.com");
+    const sites = await getSites();
+    expect(sites[0].lastContent).toBeNull();
+    expect(sites[0].lastHash).toBeNull();
+    expect(sites[0].changed).toBe(false);
+  });
 });
 
 describe("addSite", () => {

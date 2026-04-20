@@ -10,8 +10,8 @@ import WatchedSites from "@/components/WatchedSites";
 import WatchSetup from "@/components/WatchSetup";
 import { getSites, addSite, updateSite, removeSite } from "@/lib/db";
 import { EXAMPLE_SITE } from "@/lib/example-site";
-import { hashString } from "@/lib/hash";
 import type { WatchedSite } from "@/lib/db";
+import type { ClientSnapshot } from "@/lib/snapshot";
 
 function AddBar({ onAdd }: { onAdd: (url: string) => void }) {
   const [value, setValue] = useState("");
@@ -62,21 +62,23 @@ export default function Home() {
 
   async function handleImmediateAdd(
     url: string,
-    scrapeData: { markdown: string; screenshot: string | null } | null
+    snapshot: ClientSnapshot | null
   ): Promise<string> {
     const site = await addSite(url);
     let finalSite: WatchedSite = site;
-    if (scrapeData) {
-      const { markdown, screenshot } = scrapeData;
-      const titleMatch = markdown.match(/^#\s+(.+)$/m);
+    if (snapshot) {
+      const titleMatch = snapshot.markdown.match(/^#\s+(.+)$/m);
       const patch: Partial<WatchedSite> = {
-        lastContent: markdown,
-        lastScreenshot: screenshot,
-        lastHash: hashString(markdown),
-        lastChecked: Date.now(),
+        lastContent: snapshot.markdown,
+        lastScreenshot: snapshot.screenshot_url,
+        lastHash: snapshot.content_hash,
+        lastChecked: new Date(snapshot.fetched_at).getTime(),
+        changeDescription: snapshot.change_description,
+        changed:
+          snapshot.change_classification !== null &&
+          snapshot.change_classification !== "quiet",
         ...(titleMatch ? { label: titleMatch[1].trim().replace(/\s+/g, " ") } : {}),
       };
-      await updateSite(site.id, patch);
       finalSite = { ...site, ...patch };
     }
     setSites((prev) => (prev.some((s) => s.id === finalSite.id) ? prev : [...prev, finalSite]));

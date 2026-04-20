@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import type { ClientSnapshot, ScrapeResponse } from "@/lib/snapshot";
 
 interface AnalyzeOption {
   label: string;
@@ -50,7 +51,7 @@ interface Props {
   /** Adds the site immediately. Returns the new site id. */
   onAdd: (
     url: string,
-    scrapeData: { markdown: string; screenshot: string | null } | null
+    snapshot: ClientSnapshot | null
   ) => Promise<string>;
   /** Patches the already-added site with refinement choices. */
   onPatch: (
@@ -76,7 +77,7 @@ export default function WatchSetup({ url, onAdd, onPatch, onDone, onCancel }: Pr
   const [phase, setPhase] = useState<Phase>("scraping");
   const [watchTarget, setWatchTarget] = useState<string | null>(null);
   const [customInput, setCustomInput] = useState("");
-  const [scrapeData, setScrapeData] = useState<{ markdown: string; screenshot: string | null } | null>(null);
+  const [snapshot, setSnapshot] = useState<ClientSnapshot | null>(null);
   const [siteId, setSiteId] = useState<string | null>(null);
   const [scrapePhase, setScrapePhase] = useState(0);
   const [slowLoad, setSlowLoad] = useState(false);
@@ -147,19 +148,17 @@ export default function WatchSetup({ url, onAdd, onPatch, onDone, onCancel }: Pr
         if (!cancelled) setSlowLoad(true);
       }, 5000);
 
-      let markdown = "";
-      let screenshot: string | null = null;
+      let snap: ClientSnapshot | null = null;
       try {
         const res = await fetch("/api/scrape", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url }),
         });
-        const data = await res.json() as { markdown?: string; screenshot?: string | null };
-        markdown = data.markdown ?? "";
-        screenshot = data.screenshot ?? null;
+        const body = (await res.json()) as Partial<ScrapeResponse>;
+        snap = body.snapshot ?? null;
       } catch {
-        // proceed with empty markdown
+        // proceed without a snapshot; the watchlist tile will show "sniffing"
       } finally {
         clearTimeout(slowTimer);
       }
@@ -170,11 +169,11 @@ export default function WatchSetup({ url, onAdd, onPatch, onDone, onCancel }: Pr
 
       if (cancelled) return;
 
-      const data = { markdown, screenshot };
-      setScrapeData(data);
+      setSnapshot(snap);
+      const markdown = snap?.markdown ?? "";
 
       // Add immediately with defaults — site is now in the watchlist
-      const id = await onAdd(url, data);
+      const id = await onAdd(url, snap);
       if (cancelled) return;
       setSiteId(id);
 
@@ -338,11 +337,11 @@ export default function WatchSetup({ url, onAdd, onPatch, onDone, onCancel }: Pr
         <div className="flex flex-col flex-1 pt-6 pb-6" style={{ animation: "fadeSlideUp 0.5s ease-out both" }}>
 
           {/* Screenshot */}
-          {scrapeData?.screenshot && (
+          {snapshot?.screenshot_url && (
             <div className="rounded-2xl overflow-hidden border border-[var(--bdr)] mb-6">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={scrapeData.screenshot}
+                src={snapshot.screenshot_url}
                 alt={`Screenshot of ${url}`}
                 className="w-full object-cover object-top max-h-[380px]"
               />

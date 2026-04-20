@@ -202,13 +202,74 @@ describe("WatchedSites", () => {
   it("calls /api/scrape and calls onUpdate when Fetch is clicked", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      text: async () => JSON.stringify({ markdown: "new content" }),
+      text: async () =>
+        JSON.stringify({
+          snapshot: {
+            id: "snap-1",
+            page_id: "p1",
+            fetched_at: new Date().toISOString(),
+            content_hash: "abc123",
+            markdown: "new content",
+            screenshot_path: null,
+            screenshot_url: null,
+            prev_snapshot_id: null,
+            change_description: null,
+            change_classification: "quiet",
+            change_emoji: null,
+          },
+          cached: false,
+          newChange: false,
+        }),
     });
     const onUpdate = jest.fn();
     render(<WatchedSites sites={[makeSite()]} onUpdate={onUpdate} onRemove={jest.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /fetch/i }));
     await waitFor(() => expect(onUpdate).toHaveBeenCalled());
     expect(global.fetch).toHaveBeenCalledWith("/api/scrape", expect.objectContaining({ method: "POST" }));
+    const patch = onUpdate.mock.calls[0][1];
+    expect(patch.lastContent).toBe("new content");
+    expect(patch.lastHash).toBe("abc123");
+    expect(patch.changed).toBe(false);
+  });
+
+  it("appends a change-history entry when the server reports a new change", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        JSON.stringify({
+          snapshot: {
+            id: "snap-2",
+            page_id: "p1",
+            fetched_at: new Date().toISOString(),
+            content_hash: "def456",
+            markdown: "updated content",
+            screenshot_path: null,
+            screenshot_url: null,
+            prev_snapshot_id: "snap-1",
+            change_description: "Price dropped from $99 to $79.",
+            change_classification: "major",
+            change_emoji: "💰",
+          },
+          cached: false,
+          newChange: true,
+        }),
+    });
+    const onUpdate = jest.fn();
+    render(
+      <WatchedSites
+        sites={[makeSite({ lastHash: "abc", lastContent: "old" })]}
+        onUpdate={onUpdate}
+        onRemove={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /fetch/i }));
+    await waitFor(() => expect(onUpdate).toHaveBeenCalled());
+    const patch = onUpdate.mock.calls[0][1];
+    expect(patch.changed).toBe(true);
+    expect(patch.changeDescription).toBe("Price dropped from $99 to $79.");
+    expect(patch.history).toHaveLength(1);
+    expect(patch.history[0].classification).toBe("major");
+    expect(patch.history[0].description).toBe("Price dropped from $99 to $79.");
   });
 
   it("appends an error entry to history when fetch fails", async () => {
