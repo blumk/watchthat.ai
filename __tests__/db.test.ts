@@ -70,6 +70,79 @@ describe("getSites", () => {
     expect(sites[0].lastHash).toBeNull();
     expect(sites[0].changed).toBe(false);
   });
+
+  it("hydrates history from past snapshots with change descriptions", async () => {
+    await addSite("https://example.com");
+    const pageId = state.pages[0].id;
+    const t0 = new Date(Date.now() - 120_000).toISOString();
+    const t1 = new Date(Date.now() - 60_000).toISOString();
+    const t2 = new Date(Date.now() - 30_000).toISOString();
+    const snapA = {
+      id: "snap-h-1",
+      page_id: pageId,
+      fetched_at: t0,
+      content_hash: "hash-a",
+      markdown: "# v1",
+      screenshot_path: null,
+      prev_snapshot_id: null,
+      // First snapshot ever: no change description — should NOT produce history
+      change_description: null,
+      change_classification: "quiet" as const,
+      change_emoji: null,
+    };
+    const snapB = {
+      id: "snap-h-2",
+      page_id: pageId,
+      fetched_at: t1,
+      content_hash: "hash-b",
+      markdown: "# v2",
+      screenshot_path: "example/b.png",
+      prev_snapshot_id: "snap-h-1",
+      change_description: "Price dropped.",
+      change_classification: "major" as const,
+      change_emoji: "💰",
+    };
+    const snapC = {
+      id: "snap-h-3",
+      page_id: pageId,
+      fetched_at: t2,
+      content_hash: "hash-c",
+      markdown: "# v3",
+      screenshot_path: "example/c.png",
+      prev_snapshot_id: "snap-h-2",
+      change_description: "Copy tweak.",
+      change_classification: "minor" as const,
+      change_emoji: "✏️",
+    };
+    const snapQuiet = {
+      id: "snap-h-4",
+      page_id: pageId,
+      fetched_at: new Date().toISOString(),
+      content_hash: "hash-c", // same as C — hash-equal re-scrape
+      markdown: "# v3",
+      screenshot_path: "example/d.png",
+      prev_snapshot_id: "snap-h-3",
+      change_description: null,
+      change_classification: "quiet" as const,
+      change_emoji: null,
+    };
+    state.snapshots.push(snapA, snapB, snapC, snapQuiet);
+    state.pages[0].latest_snapshot_id = snapQuiet.id;
+
+    const sites = await getSites();
+    expect(sites[0].history).toHaveLength(2);
+    expect(sites[0].history[0]).toMatchObject({
+      id: "snap-h-2",
+      description: "Price dropped.",
+      classification: "major",
+      emoji: "💰",
+    });
+    expect(sites[0].history[1]).toMatchObject({
+      id: "snap-h-3",
+      description: "Copy tweak.",
+      classification: "minor",
+    });
+  });
 });
 
 describe("addSite", () => {

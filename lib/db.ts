@@ -148,6 +148,21 @@ function applySnapshot(
   };
 }
 
+function snapshotToEntry(snap: SnapshotRow): ChangeEntry | null {
+  if (!snap.change_description) return null;
+  const cls = snap.change_classification;
+  if (cls !== "major" && cls !== "minor") return null;
+  const entry: ChangeEntry = {
+    id: snap.id,
+    timestamp: new Date(snap.fetched_at).getTime(),
+    description: snap.change_description,
+    classification: cls,
+    screenshot: snapshotPublicUrl(snap.screenshot_path),
+  };
+  if (snap.change_emoji) entry.emoji = snap.change_emoji;
+  return entry;
+}
+
 export async function getSites(): Promise<WatchedSite[]> {
   const { client, user } = await ensureSession();
   const { data, error } = await client
@@ -158,29 +173,45 @@ export async function getSites(): Promise<WatchedSite[]> {
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });
   if (error) throw error;
-  const watches = ((data ?? []) as unknown as WatchRow[])
+  const rows = (data ?? []) as unknown as WatchRow[];
+  const watches = rows
     .map(rowToSite)
     .filter((s): s is WatchedSite => s !== null);
   if (watches.length === 0) return watches;
 
-  // Hydrate each watch with its page's latest snapshot (shared-read, no RLS).
-  const snapshotIds = ((data ?? []) as unknown as WatchRow[])
-    .map((r) => r.pages?.latest_snapshot_id ?? null)
+  const pageIds = rows
+    .map((r) => r.pages?.id ?? null)
     .filter((id): id is string => id !== null);
-  if (snapshotIds.length === 0) return watches;
+
+  // Pull latest snapshot per page + full history of changed snapshots in a
+  // single query. RLS scopes rows to pages the user watches.
   const { data: snaps } = await client
     .from("snapshots")
     .select("*")
-    .in("id", snapshotIds);
+    .in("page_id", pageIds)
+    .order("fetched_at", { ascending: true });
   const byId = new Map<string, SnapshotRow>();
-  for (const s of (snaps ?? []) as SnapshotRow[]) byId.set(s.id, s);
+  const historyByPage = new Map<string, ChangeEntry[]>();
+  for (const s of (snaps ?? []) as SnapshotRow[]) {
+    byId.set(s.id, s);
+    const entry = snapshotToEntry(s);
+    if (entry) {
+      const arr = historyByPage.get(s.page_id) ?? [];
+      arr.push(entry);
+      historyByPage.set(s.page_id, arr);
+    }
+  }
+
   return watches.map((site, i) => {
-    const row = (data as unknown as WatchRow[])[i];
+    const row = rows[i];
+    const pageId = row.pages?.id ?? null;
     const pageSnapId = row.pages?.latest_snapshot_id;
     const snap = pageSnapId ? byId.get(pageSnapId) : null;
-    return snap
+    const history = pageId ? historyByPage.get(pageId) ?? [] : [];
+    const hydrated = snap
       ? applySnapshot(site, snap, row.pages?.last_fetched_at ?? null)
       : site;
+    return { ...hydrated, history };
   });
 }
 

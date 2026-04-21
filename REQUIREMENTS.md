@@ -77,7 +77,9 @@ Supabase-backed. Each browser gets a Supabase anonymous session on first use;
 per-user `watches` rows join shared `pages` rows via RLS. URL + label are
 persisted; `getSites()` hydrates `lastContent` / `lastHash` / `lastScreenshot` /
 `lastChecked` / `changeDescription` / `changed` from each page's `latest_snapshot_id`
-when one exists. `history` is still React-state-only.
+when one exists, and hydrates `history` from the page's past snapshots
+(those with a `change_description` and classification `major`/`minor`) so the
+change log is consistent across clients watching the same page.
 
 - `getSites()` returns `[]` when the current user has no watches [`db.test.ts`]
 - `addSite(url)` creates a watch (and upserts the shared page) and returns it [`db.test.ts`]
@@ -88,6 +90,7 @@ when one exists. `history` is still React-state-only.
 - `addSite` returns distinct ids for different URLs [`db.test.ts`]
 - `getSites` hydrates `lastContent`, `lastHash`, `changeDescription`, `changed` from the page's latest snapshot when one exists [`db.test.ts`]
 - `getSites` leaves ephemeral fields null when the page has no snapshot yet [`db.test.ts`]
+- `getSites` hydrates `history` from past snapshots (chronological ascending) whose `change_description` is non-null and classification is `major` or `minor`; `quiet` snapshots and those with no description are excluded [`db.test.ts`]
 - `updateSite(id, { watchTarget })` persists `watch_target` on the watch row [`db.test.ts`]
 - `updateSite` silently ignores patch fields that only live in React state [`db.test.ts`]
 - `updateSite` with an unknown id is a no-op [`db.test.ts`]
