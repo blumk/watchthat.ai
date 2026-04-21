@@ -2,15 +2,18 @@
 //
 // Behaviour:
 //   - Upserts the shared `pages` row on first contact.
-//   - 60s URL-level dedup: if `last_fetched_at` is within the window, returns
+//   - 5-min URL-level dedup: if `last_fetched_at` is within the window, returns
 //     the cached latest snapshot WITHOUT calling Firecrawl (`cached: true`).
-//   - Re-fetches that return identical markdown (hash match) do NOT insert a
-//     new snapshot — only bump `last_fetched_at`.
-//   - New content: uploads the screenshot to Supabase Storage, asks Claude for
-//     a change description (when a previous snapshot exists), and inserts a
-//     new snapshot row. Page's `latest_snapshot_id` is updated to point at it.
+//     Caps scrape frequency per URL across all users.
+//   - Past the dedup window, Firecrawl runs and a new snapshot is ALWAYS
+//     inserted — even when the markdown hash matches the previous one. This
+//     keeps the screenshot fresh (markdown hash misses visual-only changes
+//     like rotating banners) and makes `last_fetched_at` visibility match
+//     reality. Claude's describe-change is skipped when the hash is unchanged
+//     (saves tokens; classification defaults to "quiet").
+//   - Page's `latest_snapshot_id` is updated to point at the new row.
 //
-// Response: `{ snapshot: SnapshotWithUrl, cached: boolean }`.
+// Response: `{ snapshot: SnapshotWithUrl, cached, newChange }`.
 
 import { NextResponse } from "next/server";
 import FirecrawlApp from "@mendable/firecrawl-js";
@@ -22,7 +25,7 @@ import { describeChange } from "@/lib/describe-change";
 import { decorateSnapshot, type SnapshotRow } from "@/lib/snapshot";
 
 const SCRAPE_TIMEOUT_MS = 300_000;
-const DEDUP_WINDOW_MS = 60_000;
+const DEDUP_WINDOW_MS = 300_000; // 5 minutes
 const SCREENSHOTS_BUCKET = "screenshots";
 
 type Svc = ReturnType<typeof createServiceClient>;
@@ -82,7 +85,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // 60s dedup short-circuit.
+  // 5-min dedup short-circuit — caps scrape frequency per URL across users.
   if (!force && page.last_fetched_at && page.latest_snapshot_id) {
     const lastMs = new Date(page.last_fetched_at).getTime();
     if (Date.now() - lastMs < DEDUP_WINDOW_MS) {
@@ -110,49 +113,36 @@ export async function POST(request: Request) {
 
   const contentHash = sha256Hex(markdown);
 
-  // Hash-equal short-circuit: re-fetch produced identical content; just bump
-  // the freshness timer and return the existing snapshot.
-  if (page.latest_snapshot_id) {
-    const latest = await loadSnapshot(svc, page.latest_snapshot_id);
-    if (latest && latest.content_hash === contentHash) {
-      await svc
-        .from("pages")
-        .update({ last_fetched_at: new Date().toISOString() })
-        .eq("id", page.id);
-      return NextResponse.json({
-        snapshot: decorateSnapshot(latest),
-        cached: false,
-        newChange: false,
-      });
-    }
-  }
+  // Compare against the previous snapshot so we can skip Claude when nothing
+  // meaningful changed. We still insert a new snapshot either way (keeps the
+  // screenshot fresh, gives `last_fetched_at` a real backing row).
+  const prev = page.latest_snapshot_id
+    ? await loadSnapshot(svc, page.latest_snapshot_id)
+    : null;
+  const hashChanged = !prev || prev.content_hash !== contentHash;
 
   const screenshotPath = firecrawlScreenshot
     ? await uploadScreenshot(svc, page.id, firecrawlScreenshot)
     : null;
 
-  // Only describe changes against a previous snapshot.
   let description: string | null = null;
   let classification: "major" | "minor" | "quiet" = "quiet";
   let emoji: string | null = null;
-  if (page.latest_snapshot_id) {
-    const prev = await loadSnapshot(svc, page.latest_snapshot_id);
-    if (prev) {
-      try {
-        const desc = await describeChange({
-          oldValue: prev.markdown,
-          newValue: markdown,
-          watchTarget: "page content",
-          url,
-        });
-        description = desc.description;
-        classification = desc.classification;
-        emoji = desc.emoji ?? null;
-      } catch (err) {
-        console.error("[scrape] describe-change failed", err);
-        description = "Page content changed.";
-        classification = "minor";
-      }
+  if (prev && hashChanged) {
+    try {
+      const desc = await describeChange({
+        oldValue: prev.markdown,
+        newValue: markdown,
+        watchTarget: "page content",
+        url,
+      });
+      description = desc.description;
+      classification = desc.classification;
+      emoji = desc.emoji ?? null;
+    } catch (err) {
+      console.error("[scrape] describe-change failed", err);
+      description = "Page content changed.";
+      classification = "minor";
     }
   }
 
@@ -188,7 +178,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     snapshot: decorateSnapshot(snapshot as SnapshotRow),
     cached: false,
-    newChange: Boolean(page.latest_snapshot_id),
+    newChange: hashChanged && Boolean(page.latest_snapshot_id),
   });
 }
 
