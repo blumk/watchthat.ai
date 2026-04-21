@@ -1,8 +1,8 @@
-# Watchthis
+# WatchThat
 
 **Know when websites change.**
 
-Watchthis is a website change monitoring tool. Paste a URL, Watchthis takes a snapshot of the page content, and barks when something changes.
+WatchThat is a website change monitoring tool. Paste a URL, WatchThat takes a snapshot of the page content, and barks when something changes.
 
 ## Stack
 
@@ -85,7 +85,7 @@ When adding a new component:
 ## Project Structure
 
 ```
-watchthis/
+watchthat/
 ├── app/
 │   ├── api/              # Route handlers (scrape, analyze, describe-change, …)
 │   ├── layout.tsx        # Root layout, metadata
@@ -113,7 +113,7 @@ Dark/light mode is handled automatically via `prefers-color-scheme` and CSS cust
 
 ## Roadmap
 
-See `watchthis-prd-trd.md` for the full product and technical spec. Short version:
+See `watchthat-prd-trd.md` for the full product and technical spec. Short version:
 
 - **V1.1** — Labels, URL validation, error retry, favicons
 - **V1.2** — Browser push notifications, service worker polling

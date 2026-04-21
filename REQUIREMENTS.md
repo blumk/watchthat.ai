@@ -1,6 +1,6 @@
 # Requirements
 
-Living specification of what Watchthis currently does. Updated whenever behaviour changes.
+Living specification of what WatchThat currently does. Updated whenever behaviour changes.
 Each requirement maps to one or more tests — the tests are the authoritative source of truth;
 this doc is the human-readable summary.
 
@@ -135,7 +135,7 @@ when one exists. `history` is still React-state-only.
 
 ## Nav
 
-- Displays the "Watchthis" brand name [`Nav.test.tsx`]
+- Displays the "WatchThat" brand name [`Nav.test.tsx`]
 - "How it works" link points to `#how` (home view only) [`Nav.test.tsx`]
 - "Pricing" link points to `#pricing` (home view only) [`Nav.test.tsx`]
 - "My Watch List" tab hidden until first site is added [`Nav.test.tsx`]

@@ -7,12 +7,12 @@ const steps = [
   {
     n: "2",
     title: "Snapshot taken",
-    desc: "Watchthis fetches the page and creates a content fingerprint.",
+    desc: "WatchThat fetches the page and creates a content fingerprint.",
   },
   {
     n: "3",
     title: "Get alerted",
-    desc: "When content changes, Watchthis barks and shows you what's different.",
+    desc: "When content changes, WatchThat barks and shows you what's different.",
   },
 ];
 

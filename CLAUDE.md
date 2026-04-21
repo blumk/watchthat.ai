@@ -60,4 +60,4 @@ Next.js 15 App Router (webpack dev bundler — Turbopack removed due to stale ma
 
 ## Roadmap Context
 
-See `watchthis-prd-trd.md` for the full spec and implementation findings. V2.0 adds backend, automated polling, and auth. Design decisions should account for this trajectory but not over-engineer prematurely.
+See `watchthat-prd-trd.md` for the full spec and implementation findings. V2.0 adds backend, automated polling, and auth. Design decisions should account for this trajectory but not over-engineer prematurely.

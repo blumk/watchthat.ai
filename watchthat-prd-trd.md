@@ -1,4 +1,4 @@
-# Watchthis — Product & Technical Requirements
+# WatchThat — Product & Technical Requirements
 
 **Know when websites change.**
 
@@ -15,7 +15,7 @@
 
 ### 1. Executive Summary
 
-Watchthis is a website change monitoring tool that lets users subscribe to any URL and receive alerts when the page's content changes. Users paste a URL, Watchthis takes an initial content snapshot, and on subsequent checks it compares the current state against the stored baseline. When a difference is detected, the user sees exactly what changed through an inline diff view.
+WatchThat is a website change monitoring tool that lets users subscribe to any URL and receive alerts when the page's content changes. Users paste a URL, WatchThat takes an initial content snapshot, and on subsequent checks it compares the current state against the stored baseline. When a difference is detected, the user sees exactly what changed through an inline diff view.
 
 The product addresses a real, underserved need: knowing when a webpage updates without manually revisiting it. Use cases range from tracking competitor pricing pages, monitoring government regulation updates, following job board postings, watching for restocks on product pages, and detecting unauthorized changes to one's own sites.
 
@@ -26,7 +26,7 @@ The web is dynamic but human attention is finite. People and businesses need to 
 - **Enterprise monitoring tools** (Distill.io, Visualping, ChangeTower) — complex setup, subscription fatigue, feature bloat. Most users need 10% of what these offer.
 - **Manual checking** — bookmarking a page and revisiting it periodically. Error-prone, time-consuming, and unsustainable at scale.
 
-Watchthis fills the gap: a fast, focused, zero-configuration tool. Paste a URL, get alerted. No account required for the MVP.
+WatchThat fills the gap: a fast, focused, zero-configuration tool. Paste a URL, get alerted. No account required for the MVP.
 
 ### 3. Target Users
 
@@ -48,8 +48,8 @@ Watchthis fills the gap: a fast, focused, zero-configuration tool. Paste a URL, 
 
 - **Zero friction.** Paste a URL and you're done. No signup, no config, no learning curve.
 - **Clarity over complexity.** Show what changed, not a wall of data. The diff view is the product.
-- **Reliable by default.** If a site is reachable, Watchthis should monitor it. Handle CORS, JS rendering, and encoding gracefully.
-- **Personality.** The "watchthis" brand is friendly and clear. The dog barks when something changes. Users remember it.
+- **Reliable by default.** If a site is reachable, WatchThat should monitor it. Handle CORS, JS rendering, and encoding gracefully.
+- **Personality.** The "watchthat" brand is friendly and clear. The dog barks when something changes. Users remember it.
 
 ### 5. Feature Requirements
 
@@ -58,7 +58,7 @@ Watchthis fills the gap: a fast, focused, zero-configuration tool. Paste a URL, 
 | Feature | Description | Priority |
 |---------|-------------|----------|
 | URL input (hero search bar) | Prominent search bar in hero section. User pastes a URL and clicks "Watch." Auto-prefixes `https://` if missing. | P0 |
-| Automatic first snapshot | On add, Watchthis immediately fetches the page, extracts text content, generates a hash, and stores the baseline. | P0 |
+| Automatic first snapshot | On add, WatchThat immediately fetches the page, extracts text content, generates a hash, and stores the baseline. | P0 |
 | Manual re-check | Per-site "Fetch" (↻) button to re-check on demand. | P0 |
 | Change detection | Compares new content hash to stored hash. If different, status becomes "Changed" with a red timestamp. | P0 |
 | Semantic watch target | Per-site "watch target" field (e.g. "the Pro plan price"). Uses Claude Haiku to extract a specific value on each check and detect changes to that value only. | P0 |
@@ -90,7 +90,7 @@ Watchthis fills the gap: a fast, focused, zero-configuration tool. Paste a URL, 
 
 #### 6.1 First-Time User
 
-1. User lands on Watchthis landing page. Sees hero headline, search bar, feature cards.
+1. User lands on WatchThat landing page. Sees hero headline, search bar, feature cards.
 2. Pastes a URL into the search bar and clicks "Watch" (or presses Enter).
 3. Page auto-scrolls to dashboard. Site appears with "Sniffing…" status.
 4. After 1–3 seconds, status changes to "All quiet" with a green checkmark. Baseline captured.
@@ -99,7 +99,7 @@ Watchthis fills the gap: a fast, focused, zero-configuration tool. Paste a URL, 
 
 #### 6.2 Returning User
 
-1. Opens Watchthis. Previously watched sites load from persistent storage.
+1. Opens WatchThat. Previously watched sites load from persistent storage.
 2. Clicks "Sniff All" to re-check all sites simultaneously.
 3. Sites with changes display red indicators. Nav shows alert dot.
 4. Can add new URLs from the same hero search bar without disrupting the existing dashboard.
