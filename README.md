@@ -12,6 +12,7 @@ WatchThat is a website change monitoring tool. Paste a URL, WatchThat takes a sn
 - **Jest + React Testing Library** — TDD enforced via `prebuild` hook
 - **pnpm** — package manager
 - **Supabase** — Postgres + Auth + Storage (local via `supabase` CLI, prod on Supabase Cloud)
+- **Sentry** — error monitoring, tracing, session replay, and AI span capture for Anthropic calls
 - **Vercel** — zero-config deployment
 
 ## Getting Started
@@ -132,7 +133,7 @@ Connect the GitHub repo in the Vercel dashboard or run:
 npx vercel
 ```
 
-Set these env vars in **Project Settings → Environment Variables** (Production): `FIRECRAWL_API_KEY`, `ANTHROPIC_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` — using your **cloud** Supabase values, not the local ones.
+Set these env vars in **Project Settings → Environment Variables** (Production): `FIRECRAWL_API_KEY`, `ANTHROPIC_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` — using your **cloud** Supabase values, not the local ones. Also set `SENTRY_AUTH_TOKEN` (from [sentry.io/settings/auth-tokens](https://sentry.io/settings/auth-tokens/), `project:releases` + `org:read` scopes) so production builds upload source maps.
 
 ### Supabase (cloud)
 

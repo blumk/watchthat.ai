@@ -176,6 +176,17 @@ change log is consistent across clients watching the same page.
 
 ---
 
+## Observability (Sentry)
+
+- `@sentry/nextjs` is initialised across all three runtimes via `instrumentation-client.ts`, `sentry.server.config.ts`, and `sentry.edge.config.ts`; `instrumentation.ts` dispatches by `NEXT_RUNTIME` and exports `onRequestError = Sentry.captureRequestError` so unhandled server request errors are reported automatically [untested]
+- `app/global-error.tsx` reports root-layout / render errors via `Sentry.captureException` [untested]
+- `next.config.ts` is wrapped with `withSentryConfig`; client events tunnel through `/monitoring` to bypass ad-blockers. `middleware.ts` matcher excludes `/monitoring` so the Supabase session middleware never runs on tunnelled Sentry requests [untested]
+- Session Replay is enabled on the client (10% of sessions, 100% of error sessions) [untested]
+- AI Monitoring: Anthropic clients in `lib/describe-change.ts` and `app/api/analyze/route.ts` are wrapped with `Sentry.instrumentAnthropicAiClient({ recordInputs: true, recordOutputs: true })`, producing `gen_ai.*` spans with prompts, responses, and token counts in Sentry traces [untested]
+- Source maps upload on production builds when `SENTRY_AUTH_TOKEN` is set (locally via `.env.sentry-build-plugin`, which is gitignored)
+
+---
+
 ## Footer
 
 - Renders a `<footer>` element [`Footer.test.tsx`]
