@@ -72,7 +72,7 @@ export default function Home() {
         lastContent: snapshot.markdown,
         lastScreenshot: snapshot.screenshot_url,
         lastHash: snapshot.content_hash,
-        lastChecked: new Date(snapshot.fetched_at).getTime(),
+        lastChecked: Date.now(),
         changeDescription: snapshot.change_description,
         changed:
           snapshot.change_classification !== null &&

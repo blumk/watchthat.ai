@@ -110,6 +110,7 @@ type WatchRow = {
     url: string;
     label: string;
     latest_snapshot_id: string | null;
+    last_fetched_at: string | null;
   } | null;
 };
 
@@ -123,15 +124,25 @@ function rowToSite(row: WatchRow): WatchedSite | null {
   });
 }
 
-function applySnapshot(site: WatchedSite, snap: SnapshotRow): WatchedSite {
+function applySnapshot(
+  site: WatchedSite,
+  snap: SnapshotRow,
+  pageLastFetchedAt: string | null,
+): WatchedSite {
   const changed =
     snap.change_classification !== null && snap.change_classification !== "quiet";
+  // lastChecked is "when the page was last fetched" — uses pages.last_fetched_at
+  // which bumps on every /api/scrape hit (including hash-equal short-circuits).
+  // snap.fetched_at would freeze at the moment the content was first captured.
+  const checkedAt = pageLastFetchedAt
+    ? new Date(pageLastFetchedAt).getTime()
+    : new Date(snap.fetched_at).getTime();
   return {
     ...site,
     lastContent: snap.markdown,
     lastHash: snap.content_hash,
     lastScreenshot: snapshotPublicUrl(snap.screenshot_path),
-    lastChecked: new Date(snap.fetched_at).getTime(),
+    lastChecked: checkedAt,
     changeDescription: snap.change_description,
     changed,
   };
@@ -141,7 +152,9 @@ export async function getSites(): Promise<WatchedSite[]> {
   const { client, user } = await ensureSession();
   const { data, error } = await client
     .from("watches")
-    .select("id, watch_target, pages(id, url, label, latest_snapshot_id)")
+    .select(
+      "id, watch_target, pages(id, url, label, latest_snapshot_id, last_fetched_at)",
+    )
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });
   if (error) throw error;
@@ -162,9 +175,12 @@ export async function getSites(): Promise<WatchedSite[]> {
   const byId = new Map<string, SnapshotRow>();
   for (const s of (snaps ?? []) as SnapshotRow[]) byId.set(s.id, s);
   return watches.map((site, i) => {
-    const pageSnapId = (data as unknown as WatchRow[])[i].pages?.latest_snapshot_id;
+    const row = (data as unknown as WatchRow[])[i];
+    const pageSnapId = row.pages?.latest_snapshot_id;
     const snap = pageSnapId ? byId.get(pageSnapId) : null;
-    return snap ? applySnapshot(site, snap) : site;
+    return snap
+      ? applySnapshot(site, snap, row.pages?.last_fetched_at ?? null)
+      : site;
   });
 }
 
