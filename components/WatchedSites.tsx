@@ -125,18 +125,19 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
       if (!scrapeRes.ok) {
         throw new Error((scrapeBody.error as string | undefined) ?? `HTTP ${scrapeRes.status}`);
       }
-      const { snapshot, newChange } = scrapeBody as unknown as ScrapeResponse;
+      const { snapshot } = scrapeBody as unknown as ScrapeResponse;
 
       const titleMatch = snapshot.markdown.match(/^#\s+(.+)$/m);
       const pageTitle = titleMatch ? titleMatch[1].trim().replace(/\s+/g, " ") : null;
 
       const classification = snapshot.change_classification;
+      const hashChanged = snapshot.content_hash !== site.lastHash;
       const cleanHistory = (site.history ?? []).filter((e) => e.classification !== "error");
       const patch: Partial<WatchedSite> = {
         lastContent: snapshot.markdown,
         lastScreenshot: snapshot.screenshot_url,
         lastHash: snapshot.content_hash,
-        lastChecked: new Date(snapshot.fetched_at).getTime(),
+        lastChecked: Date.now(),
         changeDescription: snapshot.change_description,
         changed: classification !== null && classification !== "quiet",
         error: null,
@@ -145,7 +146,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
       };
 
       if (
-        newChange &&
+        hashChanged &&
         snapshot.change_description &&
         (classification === "major" || classification === "minor")
       ) {
