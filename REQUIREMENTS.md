@@ -65,7 +65,9 @@ this doc is the human-readable summary.
 
 **Fetch**
 - Clicking ↻ calls `POST /api/scrape` and then calls `onUpdate` with a patch derived from the returned `snapshot` [`WatchedSites.test.tsx`]
-- Every fetch updates `lastChecked`; quiet fetches (first fetch, no change, cached) add no history entry
+- Every fetch updates `lastChecked`
+- The first-ever fetch (when `lastHash === null`) logs an "Initial snapshot taken." quiet entry carrying the screenshot, so the original state stays visible in the log after later changes [`WatchedSites.test.tsx`]
+- Intermediate quiet fetches (no change, cached) add no history entry
 - When the server reports `newChange: true` with a major/minor classification, a history entry is appended using the snapshot's `change_description` [`WatchedSites.test.tsx`]
 - Failed fetches log an `"error"` classified entry with the error message as description; the `error` field is also set on the site [`WatchedSites.test.tsx`]
 
@@ -90,7 +92,7 @@ change log is consistent across clients watching the same page.
 - `addSite` returns distinct ids for different URLs [`db.test.ts`]
 - `getSites` hydrates `lastContent`, `lastHash`, `changeDescription`, `changed` from the page's latest snapshot when one exists [`db.test.ts`]
 - `getSites` leaves ephemeral fields null when the page has no snapshot yet [`db.test.ts`]
-- `getSites` hydrates `history` from past snapshots (chronological ascending) whose `change_description` is non-null and classification is `major` or `minor`; `quiet` snapshots and those with no description are excluded [`db.test.ts`]
+- `getSites` hydrates `history` from past snapshots (chronological ascending). The earliest snapshot per page always appears as an "Initial snapshot taken." quiet entry carrying its screenshot; subsequent snapshots are included only when `change_description` is non-null and classification is `major` or `minor`. Mid-sequence quiet snapshots stay excluded [`db.test.ts`]
 - `updateSite(id, { watchTarget })` persists `watch_target` on the watch row [`db.test.ts`]
 - `updateSite` silently ignores patch fields that only live in React state [`db.test.ts`]
 - `updateSite` with an unknown id is a no-op [`db.test.ts`]

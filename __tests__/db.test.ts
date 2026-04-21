@@ -130,14 +130,22 @@ describe("getSites", () => {
     state.pages[0].latest_snapshot_id = snapQuiet.id;
 
     const sites = await getSites();
-    expect(sites[0].history).toHaveLength(2);
+    // Earliest snapshot surfaces as an "Initial snapshot taken." quiet entry,
+    // followed by the two changed snapshots. Mid-sequence quiet snapshots
+    // (snapQuiet / hash-equal re-fetch) stay excluded.
+    expect(sites[0].history).toHaveLength(3);
     expect(sites[0].history[0]).toMatchObject({
+      id: "snap-h-1",
+      description: "Initial snapshot taken.",
+      classification: "quiet",
+    });
+    expect(sites[0].history[1]).toMatchObject({
       id: "snap-h-2",
       description: "Price dropped.",
       classification: "major",
       emoji: "💰",
     });
-    expect(sites[0].history[1]).toMatchObject({
+    expect(sites[0].history[2]).toMatchObject({
       id: "snap-h-3",
       description: "Copy tweak.",
       classification: "minor",
