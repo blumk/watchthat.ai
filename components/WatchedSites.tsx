@@ -300,7 +300,12 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
             const histEntries = [...(site.history ?? [])].reverse();
             const histIdx = Math.min(selectedEntry[site.id] ?? 0, Math.max(0, histEntries.length - 1));
             const histEntry = histEntries[histIdx] ?? null;
-            const panelScreenshot = histEntry?.screenshot ?? site.lastScreenshot;
+            // When history exists, the thumbnail reflects the selected entry
+            // exactly — entries without a screenshot render as an empty panel
+            // rather than borrowing site.lastScreenshot and lying about which
+            // moment the image belongs to.
+            const panelScreenshot =
+              histEntries.length > 0 ? histEntry?.screenshot ?? null : site.lastScreenshot;
             const isExpanded = expandedCard === site.id;
             const hasExpandable = histEntries.length > 0 || !!panelScreenshot;
             const lastChange = histEntries.find(e => e.classification !== "quiet") ?? null;

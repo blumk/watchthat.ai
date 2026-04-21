@@ -9,6 +9,7 @@ import Footer from "@/components/Footer";
 import WatchedSites from "@/components/WatchedSites";
 import WatchSetup from "@/components/WatchSetup";
 import { getSites, addSite, updateSite, removeSite } from "@/lib/db";
+import { readCachedSites, writeCachedSites } from "@/lib/siteCache";
 import { EXAMPLE_SITE } from "@/lib/example-site";
 import type { WatchedSite } from "@/lib/db";
 import type { ClientSnapshot } from "@/lib/snapshot";
@@ -44,13 +45,25 @@ function AddBar({ onAdd }: { onAdd: (url: string) => void }) {
 }
 
 export default function Home() {
-  const [sites, setSites] = useState<WatchedSite[]>([]);
-  const [view, setView] = useState<"home" | "watchlist">("home");
+  const [sites, setSites] = useState<WatchedSite[]>(readCachedSites);
+  const [view, setView] = useState<"home" | "watchlist">(() =>
+    readCachedSites().length > 0 ? "watchlist" : "home",
+  );
   const [setupUrl, setSetupUrl] = useState<string | null>(null);
+
+  function commitSites(
+    updater: WatchedSite[] | ((prev: WatchedSite[]) => WatchedSite[]),
+  ) {
+    setSites((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      writeCachedSites(next);
+      return next;
+    });
+  }
 
   useEffect(() => {
     getSites().then((loaded) => {
-      setSites(loaded);
+      commitSites(loaded);
       if (loaded.length > 0) setView("watchlist");
     });
   }, []);
@@ -81,7 +94,7 @@ export default function Home() {
       };
       finalSite = { ...site, ...patch };
     }
-    setSites((prev) => (prev.some((s) => s.id === finalSite.id) ? prev : [...prev, finalSite]));
+    commitSites((prev) => (prev.some((s) => s.id === finalSite.id) ? prev : [...prev, finalSite]));
     setView("watchlist");
     return site.id;
   }
@@ -91,7 +104,7 @@ export default function Home() {
     patch: { watchTarget: string | null; refreshInterval: number | null }
   ) {
     await updateSite(id, patch);
-    setSites((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+    commitSites((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }
 
   function handleDone() {
@@ -99,21 +112,21 @@ export default function Home() {
   }
 
   function handleDemo() {
-    setSites((prev) =>
+    commitSites((prev) =>
       prev.some((s) => s.id === EXAMPLE_SITE.id) ? prev : [EXAMPLE_SITE, ...prev]
     );
     setView("watchlist");
   }
 
   function handleUpdate(id: string, patch: Partial<WatchedSite>) {
-    setSites((prev) =>
+    commitSites((prev) =>
       prev.map((s) => (s.id === id ? { ...s, ...patch } : s))
     );
   }
 
   async function handleRemove(id: string) {
     await removeSite(id);
-    setSites((prev) => {
+    commitSites((prev) => {
       const next = prev.filter((s) => s.id !== id);
       if (next.length === 0) setView("home");
       return next;
