@@ -192,14 +192,26 @@ export async function getSites(): Promise<WatchedSite[]> {
     .order("fetched_at", { ascending: true });
   const byId = new Map<string, SnapshotRow>();
   const historyByPage = new Map<string, ChangeEntry[]>();
+  const firstSeen = new Set<string>();
   for (const s of (snaps ?? []) as SnapshotRow[]) {
     byId.set(s.id, s);
-    const entry = snapshotToEntry(s);
-    if (entry) {
-      const arr = historyByPage.get(s.page_id) ?? [];
-      arr.push(entry);
-      historyByPage.set(s.page_id, arr);
+    const arr = historyByPage.get(s.page_id) ?? [];
+    if (!firstSeen.has(s.page_id)) {
+      firstSeen.add(s.page_id);
+      // Earliest snapshot per page — render as an "Initial snapshot taken."
+      // quiet entry so the original screenshot stays accessible in the log.
+      arr.push({
+        id: s.id,
+        timestamp: new Date(s.fetched_at).getTime(),
+        description: "Initial snapshot taken.",
+        classification: "quiet",
+        screenshot: snapshotPublicUrl(s.screenshot_path),
+      });
+    } else {
+      const entry = snapshotToEntry(s);
+      if (entry) arr.push(entry);
     }
+    historyByPage.set(s.page_id, arr);
   }
 
   return watches.map((site, i) => {

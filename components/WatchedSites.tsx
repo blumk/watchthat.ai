@@ -199,6 +199,20 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
             snapshot.change_emoji ?? undefined,
           ),
         ];
+      } else if (site.lastHash === null && cleanHistory.length === 0) {
+        // First-ever fetch: anchor the log with an "Initial snapshot taken."
+        // quiet entry so the original screenshot stays accessible after
+        // subsequent changes (otherwise history would only show post-change
+        // screenshots and the "before" state would be lost).
+        patch.history = [
+          makeEntry(
+            "Initial snapshot taken.",
+            "quiet",
+            undefined,
+            snapshot.markdown,
+            snapshot.screenshot_url,
+          ),
+        ];
       }
 
       onUpdate(site.id, patch);

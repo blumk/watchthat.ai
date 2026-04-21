@@ -232,6 +232,47 @@ describe("WatchedSites", () => {
     expect(patch.changed).toBe(false);
   });
 
+  it("logs an 'Initial snapshot taken.' quiet entry on the first fetch", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        JSON.stringify({
+          snapshot: {
+            id: "snap-init",
+            page_id: "p1",
+            fetched_at: new Date().toISOString(),
+            content_hash: "abc123",
+            markdown: "initial content",
+            screenshot_path: "s/1.png",
+            screenshot_url: "https://storage.example/s/1.png",
+            prev_snapshot_id: null,
+            change_description: null,
+            change_classification: "quiet",
+            change_emoji: null,
+          },
+          cached: false,
+          newChange: false,
+        }),
+    });
+    const onUpdate = jest.fn();
+    render(
+      <WatchedSites
+        sites={[makeSite({ lastHash: null, lastContent: null })]}
+        onUpdate={onUpdate}
+        onRemove={jest.fn()}
+      />,
+    );
+    // Component auto-fetches when lastHash === null; no click needed.
+    await waitFor(() => expect(onUpdate).toHaveBeenCalled());
+    const patch = onUpdate.mock.calls[0][1];
+    expect(patch.history).toHaveLength(1);
+    expect(patch.history[0]).toMatchObject({
+      description: "Initial snapshot taken.",
+      classification: "quiet",
+      screenshot: "https://storage.example/s/1.png",
+    });
+  });
+
   it("appends a change-history entry when the server reports a new change", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
