@@ -28,6 +28,43 @@ function makeEntry(
 
 type SiteStatus = "sniffing" | "quiet" | "changed" | "error";
 
+function Thumbnail({ src, alt }: { src: string; alt: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const ref = useRef<HTMLImageElement>(null);
+
+  // Reset when src changes — but if the browser already has the image in
+  // cache, the <img> is ready immediately and onLoad won't fire again, so
+  // check `complete` synchronously after the ref commits.
+  useEffect(() => {
+    if (ref.current?.complete && ref.current.naturalWidth > 0) {
+      setLoaded(true);
+    } else {
+      setLoaded(false);
+    }
+  }, [src]);
+
+  return (
+    <>
+      {!loaded && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-6 h-6 border-2 border-[var(--bdr)] border-t-[var(--blue)] rounded-full animate-spin" />
+        </div>
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        ref={ref}
+        src={src}
+        alt={alt}
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        className={`absolute inset-0 w-full h-full object-cover object-top transition-opacity duration-200 ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+      />
+    </>
+  );
+}
+
 function deriveStatus(site: WatchedSite, sniffing: boolean): SiteStatus {
   if (sniffing) return "sniffing";
   if (site.error) return "error";
@@ -68,6 +105,7 @@ interface Props {
 export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   const [sniffing, setSniffing] = useState<Set<string>>(new Set());
   const [selectedEntry, setSelectedEntry] = useState<Record<string, number>>({});
+  const [hoveredEntry, setHoveredEntry] = useState<Record<string, number>>({});
   const [modalScreenshot, setModalScreenshot] = useState<string | null>(null);
   const [sniffPhase, setSniffPhase] = useState(0);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
@@ -298,7 +336,10 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
             const status = deriveStatus(site, sniffing.has(site.id));
 
             const histEntries = [...(site.history ?? [])].reverse();
-            const histIdx = Math.min(selectedEntry[site.id] ?? 0, Math.max(0, histEntries.length - 1));
+            // Hover wins over click — hovering an entry previews its
+            // screenshot, leaving the list reverts to the clicked one.
+            const baseIdx = hoveredEntry[site.id] ?? selectedEntry[site.id] ?? 0;
+            const histIdx = Math.min(baseIdx, Math.max(0, histEntries.length - 1));
             const histEntry = histEntries[histIdx] ?? null;
             // When history exists, the thumbnail reflects the selected entry
             // exactly — entries without a screenshot render as an empty panel
@@ -332,11 +373,9 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                   className={`relative w-full aspect-video overflow-hidden bg-[var(--bg3)] ${isExpanded && panelScreenshot ? "cursor-zoom-in" : "cursor-pointer"}`}
                 >
                   {panelScreenshot && (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
+                    <Thumbnail
                       src={panelScreenshot}
                       alt={`Screenshot of ${site.label}`}
-                      className="absolute inset-0 w-full h-full object-cover object-top"
                     />
                   )}
                   {/* Sniffing indicator */}
@@ -403,7 +442,16 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
 
                 {/* Expanded: history log */}
                 {isExpanded && histEntries.length > 0 && (
-                  <div className="border-t border-[var(--bdr)] overflow-y-auto max-h-[220px]">
+                  <div
+                    className="border-t border-[var(--bdr)] overflow-y-auto max-h-[220px]"
+                    onMouseLeave={() =>
+                      setHoveredEntry((p) => {
+                        if (!(site.id in p)) return p;
+                        const { [site.id]: _omit, ...rest } = p;
+                        return rest;
+                      })
+                    }
+                  >
                     {histEntries.map((entry, idx) => {
                       const isSelected = idx === histIdx;
                       const entryColor =
@@ -415,6 +463,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                       return (
                         <div
                           key={entry.id}
+                          onMouseEnter={() => setHoveredEntry((p) => ({ ...p, [site.id]: idx }))}
                           onClick={e => { e.stopPropagation(); setSelectedEntry((p) => ({ ...p, [site.id]: idx })); }}
                           className={`px-3 py-2 cursor-pointer border-b border-[var(--bdr)] last:border-b-0 transition-colors ${
                             isSelected ? "bg-[var(--bg3)]" : "hover:bg-[var(--bg)]"
