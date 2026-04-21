@@ -180,3 +180,4 @@ change log is consistent across clients watching the same page.
 
 - Renders a `<footer>` element [`Footer.test.tsx`]
 - Renders the tagline [`Footer.test.tsx`]
+- Renders a "Good-bot disclaimer" small-print paragraph explaining low-frequency crawling and respect for copyright [`Footer.test.tsx`]

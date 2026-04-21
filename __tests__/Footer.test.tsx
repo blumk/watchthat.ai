@@ -13,4 +13,12 @@ describe("Footer", () => {
     const { container } = render(<Footer />);
     expect(container.querySelector("footer")).toBeInTheDocument();
   });
+
+  it("renders the good-bot disclaimer", () => {
+    render(<Footer />);
+    expect(screen.getByText(/Good-bot disclaimer/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/publicly available information/i),
+    ).toBeInTheDocument();
+  });
 });
