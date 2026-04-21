@@ -45,10 +45,8 @@ function AddBar({ onAdd }: { onAdd: (url: string) => void }) {
 }
 
 export default function Home() {
-  const [sites, setSites] = useState<WatchedSite[]>(readCachedSites);
-  const [view, setView] = useState<"home" | "watchlist">(() =>
-    readCachedSites().length > 0 ? "watchlist" : "home",
-  );
+  const [sites, setSites] = useState<WatchedSite[]>([]);
+  const [view, setView] = useState<"home" | "watchlist">("home");
   const [setupUrl, setSetupUrl] = useState<string | null>(null);
 
   function commitSites(
@@ -62,6 +60,16 @@ export default function Home() {
   }
 
   useEffect(() => {
+    // Seed from localStorage here (not during useState init) to avoid an
+    // SSR/client hydration mismatch — server has no localStorage, so the
+    // initial render must match an empty list. Cache fills in one tick
+    // after mount, which is still effectively instant vs the Supabase
+    // round-trip that follows.
+    const cached = readCachedSites();
+    if (cached.length > 0) {
+      setSites(cached);
+      setView("watchlist");
+    }
     getSites().then((loaded) => {
       commitSites(loaded);
       if (loaded.length > 0) setView("watchlist");
