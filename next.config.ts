@@ -6,6 +6,15 @@ const nextConfig: NextConfig = {
   // pre-push hook) never touches the dev server's .next directory.
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   serverExternalPackages: ["@mendable/firecrawl-js", "@anthropic-ai/sdk"],
+  // Required for Sentry browser profiling — without this header the JS self-profiler won't start.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [{ key: "Document-Policy", value: "js-profiling" }],
+      },
+    ];
+  },
   webpack(config, { dev, isServer }) {
     if (dev && !isServer) {
       // Stable chunk/module IDs in dev prevent stale-reference errors after server restarts.
