@@ -89,6 +89,7 @@ When adding a new component:
 watchthat/
 ├── app/
 │   ├── api/              # Route handlers (scrape, analyze, describe-change, …)
+│   ├── developers/       # /developers — platform pitch (devs, agent builders, investors)
 │   ├── layout.tsx        # Root layout, metadata
 │   ├── page.tsx          # Home page
 │   └── globals.css       # CSS variables + Tailwind base

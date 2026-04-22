@@ -3,12 +3,26 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from "@sentry/nextjs";
-import { nodeProfilingIntegration } from "@sentry/profiling-node";
+
+// @sentry/profiling-node ships prebuilt native bindings per Node ABI. On
+// unsupported Node versions (e.g. current-release Node before the profiler
+// catches up) the require() throws. Skip profiling there rather than
+// crash the whole server instrumentation hook.
+type ProfilingModule = typeof import("@sentry/profiling-node");
+type Integration = ReturnType<ProfilingModule["nodeProfilingIntegration"]>;
+
+let profilingIntegration: Integration | null = null;
+try {
+  const mod = require("@sentry/profiling-node") as ProfilingModule;
+  profilingIntegration = mod.nodeProfilingIntegration();
+} catch {
+  // native module missing — continue without profiling
+}
 
 Sentry.init({
   dsn: "https://d3c2a0943ee5884a02e7e194f97342c4@o4511259471052801.ingest.us.sentry.io/4511259471970304",
 
-  integrations: [nodeProfilingIntegration()],
+  integrations: profilingIntegration ? [profilingIntegration] : [],
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,

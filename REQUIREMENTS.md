@@ -144,6 +144,7 @@ change log is consistent across clients watching the same page.
 - Displays the "WatchThat" brand name [`Nav.test.tsx`]
 - "How it works" link points to `#how` (home view only) [`Nav.test.tsx`]
 - "Pricing" link points to `#pricing` (home view only) [`Nav.test.tsx`]
+- "Developers" link points to `/developers` (always visible on home view) [`Nav.test.tsx`]
 - "My Watch List" tab hidden until first site is added [`Nav.test.tsx`]
 - "My Watch List" tab switches to watchlist view; anchor links shown grayed out on watchlist view [`Nav.test.tsx`]
 - Clicking the logo/brand switches back to home view [`Nav.test.tsx`]
@@ -164,6 +165,28 @@ change log is consistent across clients watching the same page.
 - Renders step titles for all three steps [`HowItWorks.test.tsx`]
 - Renders step numbers 1, 2, 3 [`HowItWorks.test.tsx`]
 - Section has `id="how"` for anchor navigation [`HowItWorks.test.tsx`]
+
+---
+
+## Developers page (`/developers`)
+
+- Dedicated route pitching WatchThat as a platform to developers and investors [`DevelopersPage.test.tsx`]
+- `<h1>` elevator-pitch headline mentions "event stream" [`DevelopersPage.test.tsx`]
+- Renders three audience cards: "For developers", "For agent builders", "For investors" [`DevelopersPage.test.tsx`]
+- Embeds the animated `PlatformDiagram` as the architecture visual [`DevelopersPage.test.tsx`]
+- Primary contact CTA is a `mailto:hello@watchthat.app` link [`DevelopersPage.test.tsx`]
+- Includes a link back to the consumer app ("See the consumer app") [`DevelopersPage.test.tsx`]
+
+---
+
+## PlatformDiagram
+
+- Renders three tier labels: "Ingest", "Platform", "Subscribe" [`PlatformDiagram.test.tsx`]
+- Ingest tier lists web crawlers, REST & GraphQL, and MCP servers [`PlatformDiagram.test.tsx`]
+- Platform tier lists scheduler, object store, and diff intelligence [`PlatformDiagram.test.tsx`]
+- Subscribe tier lists REST API, MCP tool, and Feed & email [`PlatformDiagram.test.tsx`]
+- Root element has `role="img"` with an accessible label describing the architecture for screen readers [`PlatformDiagram.test.tsx`]
+- Horizontal flow connectors animate dots between tiers via CSS keyframes (visual only; untested)
 
 ---
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import DogLogo from "./DogLogo";
 
 interface Props {
@@ -34,6 +35,12 @@ export default function Nav({ hasSites = false, view = "home", onSwitchView }: P
         >
           Pricing
         </a>
+        <Link
+          href="/developers"
+          className="transition-colors duration-200 hover:text-[var(--t1)]"
+        >
+          Developers
+        </Link>
         {hasSites && (
           <button
             onClick={() => onSwitchView?.(view === "watchlist" ? "home" : "watchlist")}

@@ -21,6 +21,13 @@ describe("Nav", () => {
     expect(link).toHaveAttribute("href", "#pricing");
   });
 
+  it("renders Developers link pointing to /developers", () => {
+    render(<Nav />);
+    const link = screen.getByText("Developers");
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "/developers");
+  });
+
   it("does not show My Watch List when hasSites is false", () => {
     render(<Nav hasSites={false} />);
     expect(screen.queryByText("My Watch List")).not.toBeInTheDocument();
