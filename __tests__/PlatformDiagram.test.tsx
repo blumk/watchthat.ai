@@ -16,11 +16,16 @@ describe("PlatformDiagram", () => {
     expect(screen.getByText("MCP servers")).toBeInTheDocument();
   });
 
-  it("renders platform capabilities", () => {
+  it("renders the agentic platform tier as Agents / Memory / Intelligence", () => {
     render(<PlatformDiagram />);
-    expect(screen.getByText("Scheduler")).toBeInTheDocument();
-    expect(screen.getByText("Object store")).toBeInTheDocument();
-    expect(screen.getByText("Diff intelligence")).toBeInTheDocument();
+    expect(screen.getByText("Agents")).toBeInTheDocument();
+    expect(screen.getByText("Memory")).toBeInTheDocument();
+    expect(screen.getByText("Intelligence")).toBeInTheDocument();
+  });
+
+  it("frames Agents as watching continuously like humans", () => {
+    render(<PlatformDiagram />);
+    expect(screen.getByText(/like humans do/i)).toBeInTheDocument();
   });
 
   it("renders subscriber surfaces", () => {

@@ -9,9 +9,9 @@ const ingest: Node[] = [
 ];
 
 const platform: Node[] = [
-  { label: "Scheduler", sub: "Cron, dedup, backoff", icon: "⏱" },
-  { label: "Object store", sub: "Snapshots + history", icon: "🗃" },
-  { label: "Diff intelligence", sub: "Semantic change model", icon: "✨" },
+  { label: "Agents", sub: "Watch continuously, like humans do", icon: "🤖" },
+  { label: "Memory", sub: "Every version, remembered", icon: "🧠" },
+  { label: "Intelligence", sub: "Knows what changed and why", icon: "✨" },
 ];
 
 const subscribe: Node[] = [

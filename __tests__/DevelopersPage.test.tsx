@@ -7,8 +7,14 @@ describe("DevelopersPage", () => {
   it("renders the elevator-pitch headline", () => {
     render(<DevelopersPage />);
     expect(
-      screen.getByRole("heading", { level: 1, name: /event stream/i }),
+      screen.getByRole("heading", { level: 1, name: /remembers the web/i }),
     ).toBeInTheDocument();
+  });
+
+  it("frames web monitoring as the first product on a broader platform", () => {
+    render(<DevelopersPage />);
+    expect(screen.getByText(/first product/i)).toBeInTheDocument();
+    expect(screen.getByText(/built for more/i)).toBeInTheDocument();
   });
 
   it("renders the three audience cards", () => {

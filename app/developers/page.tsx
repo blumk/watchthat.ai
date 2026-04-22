@@ -7,29 +7,29 @@ import PlatformDiagram from "@/components/PlatformDiagram";
 export const metadata: Metadata = {
   title: "Developers · WatchThat",
   description:
-    "WatchThat turns the internet into an event stream. A platform for developers and agents that ingests web, API, and MCP sources and emits structured change events.",
+    "WatchThat is an agentic platform that uses and remembers the web for you and your agents to consume. Smart web monitoring is the first product; the platform is built for more.",
 };
 
 const audienceCards = [
   {
     tag: "For developers",
-    title: "Stop polling. Start subscribing.",
+    title: "Point at a URL. Get a stream.",
     body:
-      "Skip the scraping stack. Point WatchThat at any URL, endpoint, or MCP server and consume diffs over REST, MCP, or webhooks.",
+      "Skip the scraping stack. WatchThat handles fetching, storage, and diffs — you handle what to do with them.",
     cta: { label: "Read the docs", href: "/developers#api" },
   },
   {
     tag: "For agent builders",
-    title: "Give your agent long-term senses.",
+    title: "Give your agent memory of the web.",
     body:
-      "LLMs are blind between prompts. WatchThat is the persistent eyes — cron, storage, and semantic diffs, exposed as native MCP tools.",
+      "LLMs are blind between prompts. WatchThat is the persistent eyes and memory — always on, always remembering, ready when your agent asks.",
     cta: { label: "Try the MCP server", href: "/developers#mcp" },
   },
   {
     tag: "For investors",
-    title: "The event bus for the agentic web.",
+    title: "The memory layer for the agentic web.",
     body:
-      "Every AI workflow needs fresh, structured signal. We sit between the open web and the agent stack — a low-cost moat compounding with every watched page.",
+      "Every AI product above the model layer quietly rebuilds the same thing: watch, remember, explain. We built it once — web monitoring is the wedge, the surface compounds from there.",
     cta: { label: "Talk to the team", href: "mailto:hello@watchthat.app" },
   },
 ];
@@ -58,9 +58,9 @@ const pillars = [
 ];
 
 const stats = [
-  { value: "3", label: "Ingest surfaces (web, API, MCP)" },
-  { value: "5 min", label: "Fetch dedup window, all users" },
-  { value: "< 1s", label: "Diff to notification" },
+  { value: "24/7", label: "Agents watching, so you don't have to" },
+  { value: "∞", label: "Every version remembered, forever" },
+  { value: "1 min → daily", label: "Custom watch intervals" },
 ];
 
 export default function DevelopersPage() {
@@ -94,14 +94,17 @@ export default function DevelopersPage() {
           Platform preview
         </div>
         <h1 className="text-[40px] sm:text-[56px] font-black tracking-tight leading-[1.05] text-[var(--t1)] mb-5">
-          Turn the internet
+          The agentic platform
           <br />
-          into an event stream.
+          that remembers the web.
         </h1>
-        <p className="max-w-[640px] mx-auto text-[16px] text-[var(--t2)] leading-relaxed mb-8">
-          WatchThat ingests the web, APIs, and MCP sources, stores every snapshot,
-          and emits semantic change events to humans and agents. One pipeline from
-          &ldquo;did this page change?&rdquo; to &ldquo;tell my agent.&rdquo;
+        <p className="max-w-[560px] mx-auto text-[16px] text-[var(--t2)] leading-relaxed mb-4">
+          WatchThat watches the web for you and your agents — and remembers
+          what it saw.
+        </p>
+        <p className="max-w-[520px] mx-auto text-[13px] text-[var(--t3)] leading-relaxed mb-8">
+          Smart web monitoring is our first product.
+          <span className="text-[var(--t2)]"> The platform is built for more.</span>
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <a
@@ -137,9 +140,9 @@ export default function DevelopersPage() {
           </div>
           <PlatformDiagram />
           <p className="max-w-[680px] mx-auto text-center text-[12px] text-[var(--t3)] leading-relaxed mt-8">
-            Sources feed a shared snapshot store. Every fetch is deduped across all
-            subscribers; every diff is classified and described. Agents and humans
-            read the same stream.
+            Agents watch the web continuously, like humans would — but tirelessly.
+            Every version goes into a shared memory. Every change is explained.
+            Agents and humans read from the same memory.
           </p>
         </div>
       </section>
@@ -177,14 +180,14 @@ export default function DevelopersPage() {
             Why now
           </div>
           <h2 className="text-[28px] sm:text-[36px] font-black tracking-tight text-[var(--t1)] leading-[1.1] mb-4">
-            Agents need an event stream.
+            Agents need memory and senses.
             <br />
-            The web doesn&apos;t have one.
+            The web gives them neither.
           </h2>
           <p className="max-w-[640px] mx-auto text-[14px] text-[var(--t2)] leading-relaxed">
-            Every AI product above the model layer is quietly building the same
-            hack: a cron job, a diff, a notification. WatchThat is that
-            infrastructure, done once, shared across the stack.
+            The open web is stateless — every fetch starts from scratch. Agents
+            aren&apos;t. WatchThat watches for you, remembers what it saw, and
+            hands that memory back when you or your agent asks.
           </p>
         </div>
         <div className="grid grid-cols-3 gap-4">
@@ -232,7 +235,7 @@ export default function DevelopersPage() {
 
       <section className="max-w-[720px] mx-auto px-6 pb-24 text-center">
         <h2 className="text-[24px] sm:text-[32px] font-black tracking-tight text-[var(--t1)] mb-4">
-          Let&apos;s wire your agent into the web.
+          Plug your agent into web memory.
         </h2>
         <p className="text-[14px] text-[var(--t2)] leading-relaxed mb-6">
           Early access is open to developers and design partners. Investors, say

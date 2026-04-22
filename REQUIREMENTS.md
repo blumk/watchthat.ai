@@ -170,8 +170,9 @@ change log is consistent across clients watching the same page.
 
 ## Developers page (`/developers`)
 
-- Dedicated route pitching WatchThat as a platform to developers and investors [`DevelopersPage.test.tsx`]
-- `<h1>` elevator-pitch headline mentions "event stream" [`DevelopersPage.test.tsx`]
+- Dedicated route pitching WatchThat as an agentic platform to developers and investors [`DevelopersPage.test.tsx`]
+- `<h1>` elevator-pitch headline frames WatchThat as an agentic platform that "remembers the web" [`DevelopersPage.test.tsx`]
+- Hero copy positions smart web monitoring as the first product and signals the platform is "built for more" [`DevelopersPage.test.tsx`]
 - Renders three audience cards: "For developers", "For agent builders", "For investors" [`DevelopersPage.test.tsx`]
 - Embeds the animated `PlatformDiagram` as the architecture visual [`DevelopersPage.test.tsx`]
 - Primary contact CTA is a `mailto:hello@watchthat.app` link [`DevelopersPage.test.tsx`]
@@ -183,7 +184,7 @@ change log is consistent across clients watching the same page.
 
 - Renders three tier labels: "Ingest", "Platform", "Subscribe" [`PlatformDiagram.test.tsx`]
 - Ingest tier lists web crawlers, REST & GraphQL, and MCP servers [`PlatformDiagram.test.tsx`]
-- Platform tier lists scheduler, object store, and diff intelligence [`PlatformDiagram.test.tsx`]
+- Platform tier lists Agents, Memory, and Intelligence — the agentic framing; Agents are described as watching "like humans do" [`PlatformDiagram.test.tsx`]
 - Subscribe tier lists REST API, MCP tool, and Feed & email [`PlatformDiagram.test.tsx`]
 - Root element has `role="img"` with an accessible label describing the architecture for screen readers [`PlatformDiagram.test.tsx`]
 - Horizontal flow connectors animate dots between tiers via CSS keyframes (visual only; untested)
