@@ -79,7 +79,8 @@ allowed_cidrs_v6 = ["::/0"]
 # enabled = true
 
 [realtime]
-enabled = true
+# Disabled locally — WatchThat doesn't use realtime channels; saves ~250MiB.
+enabled = false
 # Bind realtime via either IPv4 or IPv6. (default: IPv4)
 # ip_version = "IPv6"
 # The maximum length in bytes of HTTP request headers. (default: 4096)
@@ -376,7 +377,9 @@ deno_version = 2
 # secret_key = "env(SECRET_VALUE)"
 
 [analytics]
-enabled = true
+# Disabled locally — Logflare + Vector together eat ~830MiB for Studio's
+# log tab only. Re-enable if you need to debug logs in Studio.
+enabled = false
 port = 54327
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"
