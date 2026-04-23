@@ -171,9 +171,37 @@ describe("POST /api/scrape", () => {
     expect(body.snapshot.change_classification).toBe("quiet");
     expect(body.snapshot.change_description).toBeNull();
     expect(body.snapshot.content_hash).toBe(state.snapshots[0].content_hash);
+    // Hash-equal re-inserts store markdown=NULL to avoid byte-for-byte dupes.
+    // The first snapshot still carries the actual text.
+    expect(body.snapshot.markdown).toBeNull();
+    expect(state.snapshots[0].markdown).toBe("# Hello world");
+    expect(state.snapshots[1].markdown).toBeNull();
     expect(state.pages[0].last_fetched_at).not.toBe(before);
     expect(state.pages[0].latest_snapshot_id).toBe(body.snapshot.id);
     expect(mockDescribeChange).not.toHaveBeenCalled();
+  });
+
+  it("resolves prev.markdown from an earlier snapshot when the latest row has markdown=null", async () => {
+    // First scrape: writes markdown.
+    await POST(makeRequest({ url: "https://example.com" }));
+    // Hash-equal re-fetch past dedup — writes markdown=null.
+    state.pages[0].last_fetched_at = new Date(Date.now() - 600_000).toISOString();
+    await POST(makeRequest({ url: "https://example.com" }));
+    expect(state.snapshots[1].markdown).toBeNull();
+
+    // Now the content actually changes. describeChange should receive the
+    // resolved markdown from the original snapshot, not the null one.
+    state.pages[0].last_fetched_at = new Date(Date.now() - 600_000).toISOString();
+    mockFirecrawl("# Hello world — updated");
+    await POST(makeRequest({ url: "https://example.com" }));
+
+    expect(mockDescribeChange).toHaveBeenCalledTimes(1);
+    expect(mockDescribeChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        oldValue: "# Hello world",
+        newValue: "# Hello world — updated",
+      }),
+    );
   });
 
   it("hash-different re-fetch inserts a new snapshot with change description", async () => {

@@ -26,7 +26,7 @@ export interface FakeSnapshot {
   page_id: string;
   fetched_at: string;
   content_hash: string;
-  markdown: string;
+  markdown: string | null;
   screenshot_path: string | null;
   prev_snapshot_id: string | null;
   change_description: string | null;
@@ -213,7 +213,7 @@ class Query {
               fetched_at:
                 (row.fetched_at as string | undefined) ?? new Date().toISOString(),
               content_hash: row.content_hash as string,
-              markdown: row.markdown as string,
+              markdown: (row.markdown as string | null | undefined) ?? null,
               screenshot_path: (row.screenshot_path as string | null) ?? null,
               prev_snapshot_id: (row.prev_snapshot_id as string | null) ?? null,
               change_description: (row.change_description as string | null) ?? null,

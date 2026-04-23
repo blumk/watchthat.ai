@@ -128,6 +128,7 @@ function applySnapshot(
   site: WatchedSite,
   snap: SnapshotRow,
   pageLastFetchedAt: string | null,
+  resolvedMarkdown: string | null,
 ): WatchedSite {
   const changed =
     snap.change_classification !== null && snap.change_classification !== "quiet";
@@ -139,7 +140,7 @@ function applySnapshot(
     : new Date(snap.fetched_at).getTime();
   return {
     ...site,
-    lastContent: snap.markdown,
+    lastContent: resolvedMarkdown,
     lastHash: snap.content_hash,
     lastScreenshot: snapshotPublicUrl(snap.screenshot_path),
     lastChecked: checkedAt,
@@ -191,10 +192,18 @@ export async function getSites(): Promise<WatchedSite[]> {
     .in("page_id", pageIds)
     .order("fetched_at", { ascending: true });
   const byId = new Map<string, SnapshotRow>();
+  // (page_id|content_hash) → markdown of the earliest snapshot carrying the
+  // actual text. Hash-equal re-inserts write markdown=null, so we backfill
+  // lastContent from the original snapshot of that hash.
+  const markdownByHash = new Map<string, string>();
   const historyByPage = new Map<string, ChangeEntry[]>();
   const firstSeen = new Set<string>();
   for (const s of (snaps ?? []) as SnapshotRow[]) {
     byId.set(s.id, s);
+    if (s.markdown !== null) {
+      const key = `${s.page_id}|${s.content_hash}`;
+      if (!markdownByHash.has(key)) markdownByHash.set(key, s.markdown);
+    }
     const arr = historyByPage.get(s.page_id) ?? [];
     if (!firstSeen.has(s.page_id)) {
       firstSeen.add(s.page_id);
@@ -220,8 +229,11 @@ export async function getSites(): Promise<WatchedSite[]> {
     const pageSnapId = row.pages?.latest_snapshot_id;
     const snap = pageSnapId ? byId.get(pageSnapId) : null;
     const history = pageId ? historyByPage.get(pageId) ?? [] : [];
+    const resolvedMarkdown = snap
+      ? snap.markdown ?? markdownByHash.get(`${snap.page_id}|${snap.content_hash}`) ?? null
+      : null;
     const hydrated = snap
-      ? applySnapshot(site, snap, row.pages?.last_fetched_at ?? null)
+      ? applySnapshot(site, snap, row.pages?.last_fetched_at ?? null, resolvedMarkdown)
       : site;
     return { ...hydrated, history };
   });

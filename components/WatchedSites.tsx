@@ -165,14 +165,18 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
       }
       const { snapshot } = scrapeBody as unknown as ScrapeResponse;
 
-      const titleMatch = snapshot.markdown.match(/^#\s+(.+)$/m);
+      // snapshot.markdown is NULL on hash-equal re-inserts. Fall back to the
+      // markdown we already have in state for this site — same content_hash
+      // guarantees the text matches.
+      const resolvedMarkdown = snapshot.markdown ?? site.lastContent ?? null;
+      const titleMatch = resolvedMarkdown?.match(/^#\s+(.+)$/m) ?? null;
       const pageTitle = titleMatch ? titleMatch[1].trim().replace(/\s+/g, " ") : null;
 
       const classification = snapshot.change_classification;
       const hashChanged = snapshot.content_hash !== site.lastHash;
       const cleanHistory = (site.history ?? []).filter((e) => e.classification !== "error");
       const patch: Partial<WatchedSite> = {
-        lastContent: snapshot.markdown,
+        lastContent: resolvedMarkdown,
         lastScreenshot: snapshot.screenshot_url,
         lastHash: snapshot.content_hash,
         lastChecked: Date.now(),
@@ -194,7 +198,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
             snapshot.change_description,
             classification,
             site.lastContent ?? undefined,
-            snapshot.markdown,
+            resolvedMarkdown ?? undefined,
             snapshot.screenshot_url,
             snapshot.change_emoji ?? undefined,
           ),
@@ -209,7 +213,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
             "Initial snapshot taken.",
             "quiet",
             undefined,
-            snapshot.markdown,
+            resolvedMarkdown ?? undefined,
             snapshot.screenshot_url,
           ),
         ];

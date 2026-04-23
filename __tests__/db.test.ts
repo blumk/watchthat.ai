@@ -71,6 +71,43 @@ describe("getSites", () => {
     expect(sites[0].changed).toBe(false);
   });
 
+  it("resolves lastContent from an earlier snapshot when the latest snapshot's markdown is null", async () => {
+    // Simulates a hash-equal re-fetch: original snapshot carries the
+    // markdown, newer snapshot with the same content_hash has markdown=null.
+    await addSite("https://example.com");
+    const pageId = state.pages[0].id;
+    const original = {
+      id: "snap-a",
+      page_id: pageId,
+      fetched_at: new Date(Date.now() - 60_000).toISOString(),
+      content_hash: "hash-same",
+      markdown: "# Original text",
+      screenshot_path: "example/a.png",
+      prev_snapshot_id: null,
+      change_description: null,
+      change_classification: "quiet" as const,
+      change_emoji: null,
+    };
+    const duplicate = {
+      id: "snap-b",
+      page_id: pageId,
+      fetched_at: new Date().toISOString(),
+      content_hash: "hash-same",
+      markdown: null,
+      screenshot_path: "example/b.png",
+      prev_snapshot_id: "snap-a",
+      change_description: null,
+      change_classification: "quiet" as const,
+      change_emoji: null,
+    };
+    state.snapshots.push(original, duplicate);
+    state.pages[0].latest_snapshot_id = duplicate.id;
+
+    const sites = await getSites();
+    expect(sites[0].lastHash).toBe("hash-same");
+    expect(sites[0].lastContent).toBe("# Original text");
+  });
+
   it("hydrates history from past snapshots with change descriptions", async () => {
     await addSite("https://example.com");
     const pageId = state.pages[0].id;

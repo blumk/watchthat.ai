@@ -40,7 +40,9 @@ export type Database = {
           page_id: string;
           fetched_at: string;
           content_hash: string;
-          markdown: string;
+          // NULL on hash-equal re-inserts — readers resolve the text via the
+          // earliest snapshot with the same (page_id, content_hash).
+          markdown: string | null;
           screenshot_path: string | null;
           prev_snapshot_id: string | null;
           change_description: string | null;
@@ -52,7 +54,7 @@ export type Database = {
           page_id: string;
           fetched_at?: string;
           content_hash: string;
-          markdown: string;
+          markdown?: string | null;
           screenshot_path?: string | null;
           prev_snapshot_id?: string | null;
           change_description?: string | null;

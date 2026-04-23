@@ -11,6 +11,9 @@
 //     like rotating banners) and makes `last_fetched_at` visibility match
 //     reality. Claude's describe-change is skipped when the hash is unchanged
 //     (saves tokens; classification defaults to "quiet").
+//   - Hash-equal inserts store `markdown = NULL` — the text would be a
+//     byte-for-byte duplicate of an earlier row, so readers resolve it from
+//     the earliest snapshot with the same (page_id, content_hash).
 //   - Page's `latest_snapshot_id` is updated to point at the new row.
 //
 // Response: `{ snapshot: SnapshotWithUrl, cached, newChange }`.
@@ -129,9 +132,14 @@ export async function POST(request: Request) {
   let classification: "major" | "minor" | "quiet" = "quiet";
   let emoji: string | null = null;
   if (prev && hashChanged) {
+    // prev.markdown is NULL whenever the previous snapshot was itself a
+    // hash-equal re-insert. Resolve it via the earliest row carrying the same
+    // (page_id, content_hash).
+    const oldValue =
+      prev.markdown ?? (await resolveMarkdown(svc, prev.page_id, prev.content_hash));
     try {
       const desc = await describeChange({
-        oldValue: prev.markdown,
+        oldValue: oldValue ?? "",
         newValue: markdown,
         watchTarget: "page content",
         url,
@@ -151,7 +159,8 @@ export async function POST(request: Request) {
     .insert({
       page_id: page.id,
       content_hash: contentHash,
-      markdown,
+      // Skip re-storing identical markdown on hash-equal re-fetches.
+      markdown: hashChanged ? markdown : null,
       screenshot_path: screenshotPath,
       prev_snapshot_id: page.latest_snapshot_id ?? null,
       change_description: description,
@@ -229,6 +238,28 @@ function firecrawlErrorResponse(url: string, err: unknown) {
 async function loadSnapshot(svc: Svc, id: string): Promise<SnapshotRow | null> {
   const { data } = await svc.from("snapshots").select("*").eq("id", id).maybeSingle();
   return (data as SnapshotRow | null) ?? null;
+}
+
+// Fallback markdown resolver for hash-equal re-inserts. We store
+// markdown=null on dup rows, so when describe-change needs the previous text
+// we look up the earliest snapshot with the same (page_id, content_hash) that
+// still carries the actual markdown.
+async function resolveMarkdown(
+  svc: Svc,
+  pageId: string,
+  contentHash: string,
+): Promise<string | null> {
+  const { data } = await svc
+    .from("snapshots")
+    .select("markdown, fetched_at")
+    .eq("page_id", pageId)
+    .eq("content_hash", contentHash)
+    .order("fetched_at", { ascending: true });
+  const rows = (data ?? []) as Array<{ markdown: string | null }>;
+  for (const row of rows) {
+    if (row.markdown !== null) return row.markdown;
+  }
+  return null;
 }
 
 async function uploadScreenshot(

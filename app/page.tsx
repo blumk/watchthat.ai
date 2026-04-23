@@ -88,7 +88,7 @@ export default function Home() {
     const site = await addSite(url);
     let finalSite: WatchedSite = site;
     if (snapshot) {
-      const titleMatch = snapshot.markdown.match(/^#\s+(.+)$/m);
+      const titleMatch = snapshot.markdown?.match(/^#\s+(.+)$/m) ?? null;
       const initialEntry: ChangeEntry = {
         id: snapshot.id,
         timestamp: new Date(snapshot.fetched_at).getTime(),
