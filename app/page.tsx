@@ -11,7 +11,7 @@ import WatchSetup from "@/components/WatchSetup";
 import { getSites, addSite, updateSite, removeSite } from "@/lib/db";
 import { readCachedSites, writeCachedSites } from "@/lib/siteCache";
 import { EXAMPLE_SITE } from "@/lib/example-site";
-import type { WatchedSite } from "@/lib/db";
+import type { WatchedSite, ChangeEntry } from "@/lib/db";
 import type { ClientSnapshot } from "@/lib/snapshot";
 
 function AddBar({ onAdd }: { onAdd: (url: string) => void }) {
@@ -89,6 +89,13 @@ export default function Home() {
     let finalSite: WatchedSite = site;
     if (snapshot) {
       const titleMatch = snapshot.markdown.match(/^#\s+(.+)$/m);
+      const initialEntry: ChangeEntry = {
+        id: snapshot.id,
+        timestamp: new Date(snapshot.fetched_at).getTime(),
+        description: "Initial snapshot taken.",
+        classification: "quiet",
+        screenshot: snapshot.screenshot_url,
+      };
       const patch: Partial<WatchedSite> = {
         lastContent: snapshot.markdown,
         lastScreenshot: snapshot.screenshot_url,
@@ -98,6 +105,7 @@ export default function Home() {
         changed:
           snapshot.change_classification !== null &&
           snapshot.change_classification !== "quiet",
+        history: [initialEntry],
         ...(titleMatch ? { label: titleMatch[1].trim().replace(/\s+/g, " ") } : {}),
       };
       finalSite = { ...site, ...patch };
