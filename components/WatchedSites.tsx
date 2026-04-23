@@ -112,7 +112,19 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   const [editingCard, setEditingCard] = useState<string | null>(null);
   const [editUrl, setEditUrl] = useState("");
   const [downloading, setDownloading] = useState<string | null>(null);
+  // Ephemeral "No change detected" indicator per site — set after a refresh
+  // that didn't move the hash, cleared the next time a real history entry
+  // (change / initial / error) lands. Not persisted.
+  const [noChangeAt, setNoChangeAt] = useState<Record<string, number>>({});
   const autoFetched = useRef<Set<string>>(new Set());
+
+  function clearNoChange(id: string) {
+    setNoChangeAt((prev) => {
+      if (!(id in prev)) return prev;
+      const { [id]: _omit, ...rest } = prev;
+      return rest;
+    });
+  }
 
   // Cycle sniff label while any fetch is in progress
   useEffect(() => {
@@ -203,6 +215,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
             snapshot.change_emoji ?? undefined,
           ),
         ];
+        clearNoChange(site.id);
       } else if (site.lastHash === null && cleanHistory.length === 0) {
         // First-ever fetch: anchor the log with an "Initial snapshot taken."
         // quiet entry so the original screenshot stays accessible after
@@ -217,6 +230,12 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
             snapshot.screenshot_url,
           ),
         ];
+        clearNoChange(site.id);
+      } else {
+        // Refresh produced no new entry — surface an ephemeral indicator so
+        // the user knows the check ran. Replaces any prior no-change marker
+        // and vanishes as soon as a real entry lands.
+        setNoChangeAt((prev) => ({ ...prev, [site.id]: Date.now() }));
       }
 
       onUpdate(site.id, patch);
@@ -228,6 +247,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
         history: [...(site.history ?? []), makeEntry(error, "error")],
       };
       onUpdate(site.id, patch);
+      clearNoChange(site.id);
     } finally {
       setSniffing((prev) => {
         const next = new Set(prev);
@@ -353,7 +373,20 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
           {sites.map((site) => {
             const status = deriveStatus(site, sniffing.has(site.id));
 
-            const histEntries = [...(site.history ?? [])].reverse();
+            const noChangeTs = noChangeAt[site.id];
+            const ephemeralNoChange: ChangeEntry | null = noChangeTs
+              ? {
+                  id: `_nochange_${site.id}`,
+                  timestamp: noChangeTs,
+                  description: "No change detected.",
+                  classification: "quiet",
+                  screenshot: site.lastScreenshot,
+                }
+              : null;
+            const histEntries = [
+              ...(site.history ?? []),
+              ...(ephemeralNoChange ? [ephemeralNoChange] : []),
+            ].reverse();
             // Hover wins over click — hovering an entry previews its
             // screenshot, leaving the list reverts to the clicked one.
             const baseIdx = hoveredEntry[site.id] ?? selectedEntry[site.id] ?? 0;

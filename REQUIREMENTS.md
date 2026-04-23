@@ -67,7 +67,7 @@ this doc is the human-readable summary.
 - Clicking ↻ calls `POST /api/scrape` and then calls `onUpdate` with a patch derived from the returned `snapshot` [`WatchedSites.test.tsx`]
 - Every fetch updates `lastChecked`
 - The first-ever fetch (when `lastHash === null`) logs an "Initial snapshot taken." quiet entry carrying the screenshot, so the original state stays visible in the log after later changes [`WatchedSites.test.tsx`]
-- Intermediate quiet fetches (no change, cached) add no history entry
+- Intermediate quiet fetches (no change, cached) add no history entry; instead an ephemeral "No change detected." quiet row is shown in the expanded log until the next real entry (change / initial / error) lands. Not persisted. [`WatchedSites.test.tsx`]
 - When the server reports `newChange: true` with a major/minor classification, a history entry is appended using the snapshot's `change_description` [`WatchedSites.test.tsx`]
 - Failed fetches log an `"error"` classified entry with the error message as description; the `error` field is also set on the site [`WatchedSites.test.tsx`]
 

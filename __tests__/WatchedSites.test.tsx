@@ -313,6 +313,56 @@ describe("WatchedSites", () => {
     expect(patch.history[0].description).toBe("Price dropped from $99 to $79.");
   });
 
+  it("shows an ephemeral 'No change detected.' row after a refresh with no hash change", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        JSON.stringify({
+          snapshot: {
+            id: "snap-same",
+            page_id: "p1",
+            fetched_at: new Date().toISOString(),
+            content_hash: "deadbeef",
+            markdown: null,
+            screenshot_path: null,
+            screenshot_url: null,
+            prev_snapshot_id: null,
+            change_description: null,
+            change_classification: "quiet",
+            change_emoji: null,
+          },
+          cached: false,
+          newChange: false,
+        }),
+    });
+    const onUpdate = jest.fn();
+    const initialHistory = [
+      {
+        id: "h0",
+        timestamp: Date.now() - 60000,
+        description: "Initial snapshot taken.",
+        classification: "quiet" as const,
+      },
+    ];
+    render(
+      <WatchedSites
+        sites={[makeSite({ history: initialHistory })]}
+        onUpdate={onUpdate}
+        onRemove={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /fetch/i }));
+    await waitFor(() => expect(onUpdate).toHaveBeenCalled());
+    // No-change refresh must not add a history entry to the persisted patch.
+    const patch = onUpdate.mock.calls[0][1];
+    expect(patch.history).toHaveLength(1);
+    expect(patch.history[0].id).toBe("h0");
+
+    // Ephemeral row only renders in the expanded log.
+    fireEvent.click(screen.getByRole("button", { name: /expand/i }));
+    expect(await screen.findByText("No change detected.")).toBeInTheDocument();
+  });
+
   it("appends an error entry to history when fetch fails", async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error("network error"));
     const onUpdate = jest.fn();
