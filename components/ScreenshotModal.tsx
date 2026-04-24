@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import type { ChangeEntry } from "@/lib/db";
 
 interface Props {
-  src: string;
-  alt?: string;
+  entries: ChangeEntry[];
+  initialIndex: number;
   onClose: () => void;
 }
 
@@ -27,7 +28,19 @@ function touchMid(t: React.TouchList) {
   return { x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 };
 }
 
-export default function ScreenshotModal({ src, alt = "Screenshot", onClose }: Props) {
+function timeAgo(ts: number): string {
+  const sec = Math.floor((Date.now() - ts) / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}min ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  return `${Math.floor(hr / 24)}d ago`;
+}
+
+export default function ScreenshotModal({ entries, initialIndex, onClose }: Props) {
+  const safeInitial = Math.min(Math.max(0, initialIndex), Math.max(0, entries.length - 1));
+  const [index, setIndex] = useState(safeInitial);
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   // Mirror view in a ref so wheel/touch handlers always see latest value without stale closures
@@ -42,6 +55,10 @@ export default function ScreenshotModal({ src, alt = "Screenshot", onClose }: Pr
   const lastPt = useRef({ x: 0, y: 0 });
   const pinchDist = useRef<number | null>(null);
   const pinchMid = useRef({ x: 0, y: 0 });
+
+  const entry = entries[index];
+  const src = entry?.screenshot ?? null;
+  const alt = entry ? `Screenshot — ${entry.description}` : "Screenshot";
 
   function applyView(updater: (v: View) => View) {
     const next = updater(viewRef.current);
@@ -65,12 +82,33 @@ export default function ScreenshotModal({ src, alt = "Screenshot", onClose }: Pr
     setLoaded(true);
   }
 
-  // Escape to close
+  // Reset zoom/pan whenever the displayed image changes; new <img>'s onLoad
+  // will recompute fit. Without this, switching between two images keeps the
+  // prior pan offset and briefly shows the new image at the wrong position.
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    viewRef.current = { scale: 1, x: 0, y: 0 };
+    _setView({ scale: 1, x: 0, y: 0 });
+    setLoaded(false);
+  }, [src]);
+
+  // Keyboard: Escape closes, Arrow Up/Down (and Left/Right) step between entries
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+        e.preventDefault();
+        setIndex((i) => Math.min(entries.length - 1, i + 1));
+      } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        setIndex((i) => Math.max(0, i - 1));
+      }
+    };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
+  }, [onClose, entries.length]);
 
   // Wheel zoom — non-passive so we can preventDefault
   useEffect(() => {
@@ -159,72 +197,130 @@ export default function ScreenshotModal({ src, alt = "Screenshot", onClose }: Pr
   const pct = Math.round(view.scale * 100);
   const atFit = view.scale <= fitScale + 0.001;
 
+  if (!entry) return null;
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/92 flex flex-col">
-      {/* Zoomable image area — clicking the backdrop closes */}
-      <div
-        ref={containerRef}
-        className="flex-1 flex items-center justify-center overflow-hidden select-none"
-        style={{ touchAction: "none" }}
-        onClick={e => { if (!dragMoved.current && e.target === containerRef.current) onClose(); }}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-        onMouseLeave={onMouseUp}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          ref={imgRef}
-          src={src}
-          alt={alt}
-          draggable={false}
-          onLoad={computeFit}
-          className="rounded select-none"
-          style={{
-            // No max-width/max-height — rendered at natural resolution so zoom-in is crisp
-            maxWidth: "none",
-            maxHeight: "none",
-            transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
-            transformOrigin: "center center",
-            cursor: view.scale > fitScale ? "grab" : "zoom-in",
-            willChange: "transform",
-            opacity: loaded ? 1 : 0,
-          }}
-        />
+    <div className="fixed inset-0 z-50 bg-black flex flex-col md:flex-row">
+      {/* ── Image column ── */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Zoomable image area — clicking the backdrop closes */}
+        <div
+          ref={containerRef}
+          className="flex-1 flex items-center justify-center overflow-hidden select-none"
+          style={{ touchAction: "none" }}
+          onClick={e => { if (!dragMoved.current && e.target === containerRef.current) onClose(); }}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseUp}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
+          {src && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              ref={imgRef}
+              src={src}
+              alt={alt}
+              draggable={false}
+              onLoad={computeFit}
+              className="rounded select-none"
+              style={{
+                // No max-width/max-height — rendered at natural resolution so zoom-in is crisp
+                maxWidth: "none",
+                maxHeight: "none",
+                transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+                transformOrigin: "center center",
+                cursor: view.scale > fitScale ? "grab" : "zoom-in",
+                willChange: "transform",
+                opacity: loaded ? 1 : 0,
+              }}
+            />
+          )}
+        </div>
+
+        {/* Controls bar */}
+        <div
+          className="shrink-0 h-14 flex items-center justify-between px-5 border-t border-white/10"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-2">
+            <button
+              aria-label="Zoom out"
+              onClick={() => applyView(v => zoomAt(v, v.scale / 1.5, 0, 0, fitScale))}
+              disabled={atFit}
+              className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xl leading-none flex items-center justify-center disabled:opacity-25 cursor-pointer border-none transition-colors"
+            >−</button>
+            <button
+              aria-label="Reset zoom"
+              onClick={() => applyView(() => ({ scale: fitScale, x: 0, y: 0 }))}
+              className="text-xs font-mono text-white/40 hover:text-white/70 w-12 text-center cursor-pointer bg-transparent border-none transition-colors"
+            >{pct}%</button>
+            <button
+              aria-label="Zoom in"
+              onClick={() => applyView(v => zoomAt(v, v.scale * 1.5, 0, 0, fitScale))}
+              disabled={view.scale >= MAX_SCALE}
+              className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xl leading-none flex items-center justify-center disabled:opacity-25 cursor-pointer border-none transition-colors"
+            >+</button>
+            <span className="ml-3 text-xs font-mono text-white/40 select-none">
+              {index + 1} / {entries.length}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium cursor-pointer border-none transition-colors"
+          >Close</button>
+        </div>
       </div>
 
-      {/* Controls bar */}
-      <div
-        className="shrink-0 h-14 flex items-center justify-between px-5 border-t border-white/10"
-        onClick={e => e.stopPropagation()}
+      {/* ── Desktop right rail: changelog ── */}
+      <aside
+        aria-label="Change history"
+        className="hidden md:flex flex-col w-72 lg:w-80 shrink-0 border-l border-white/10 overflow-y-auto"
       >
-        <div className="flex items-center gap-2">
-          <button
-            aria-label="Zoom out"
-            onClick={() => applyView(v => zoomAt(v, v.scale / 1.5, 0, 0, fitScale))}
-            disabled={atFit}
-            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xl leading-none flex items-center justify-center disabled:opacity-25 cursor-pointer border-none transition-colors"
-          >−</button>
-          <button
-            aria-label="Reset zoom"
-            onClick={() => applyView(() => ({ scale: fitScale, x: 0, y: 0 }))}
-            className="text-xs font-mono text-white/40 hover:text-white/70 w-12 text-center cursor-pointer bg-transparent border-none transition-colors"
-          >{pct}%</button>
-          <button
-            aria-label="Zoom in"
-            onClick={() => applyView(v => zoomAt(v, v.scale * 1.5, 0, 0, fitScale))}
-            disabled={view.scale >= MAX_SCALE}
-            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xl leading-none flex items-center justify-center disabled:opacity-25 cursor-pointer border-none transition-colors"
-          >+</button>
+        <div className="px-4 py-3 text-xs font-mono text-white/40 uppercase tracking-wide border-b border-white/10">
+          Change history
         </div>
-        <button
-          onClick={onClose}
-          className="px-4 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium cursor-pointer border-none transition-colors"
-        >Close</button>
-      </div>
+        <ul className="flex-1">
+          {entries.map((e, i) => {
+            const isSelected = i === index;
+            const dotColor =
+              e.classification === "major" ? "var(--red)"
+              : e.classification === "error" ? "var(--red)"
+              : e.classification === "quiet" ? "var(--green)"
+              : "var(--t3)";
+            return (
+              <li key={e.id}>
+                <button
+                  onClick={() => setIndex(i)}
+                  aria-current={isSelected ? "true" : undefined}
+                  className={`w-full text-left px-4 py-3 border-b border-white/5 cursor-pointer transition-colors ${
+                    isSelected ? "bg-white/10" : "hover:bg-white/5"
+                  }`}
+                >
+                  <div className="flex items-start gap-2 min-w-0">
+                    {e.emoji ? (
+                      <span className="shrink-0 text-sm leading-none mt-px">{e.emoji}</span>
+                    ) : (
+                      <span
+                        className="shrink-0 w-1.5 h-1.5 rounded-full mt-1.5"
+                        style={{ background: dotColor }}
+                      />
+                    )}
+                    <span className={`text-xs flex-1 leading-snug ${isSelected ? "text-white" : "text-white/70"}`}>
+                      {e.description}
+                    </span>
+                  </div>
+                  <div className="mt-1 ml-4 text-[10px] font-mono text-white/30">
+                    {timeAgo(e.timestamp)}
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </aside>
     </div>
   );
 }

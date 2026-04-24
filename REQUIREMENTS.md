@@ -51,6 +51,12 @@ this doc is the human-readable summary.
 - Clicking the thumbnail opens a full-screen modal [`WatchedSites.test.tsx`]
 - Screenshot panel on the right of the history list also opens the modal on click
 
+**Full-screen modal (`ScreenshotModal`)**
+- Full-black backdrop; pan/zoom/pinch on the image [`ScreenshotModal.test.tsx`]
+- Desktop (≥768px): right rail lists every history entry with a screenshot; clicking a row jumps to that screenshot [`ScreenshotModal.test.tsx`]
+- Keyboard: `Escape` closes, `ArrowUp`/`ArrowLeft` steps to the previous entry, `ArrowDown`/`ArrowRight` steps to the next; clamped at the ends [`ScreenshotModal.test.tsx`]
+- Counter (`N / total`) in the controls bar reflects the selected entry [`ScreenshotModal.test.tsx`]
+
 **Change history log**
 - All fetches (including quiet/no-change checks) are appended as `ChangeEntry` records
 - Changelog hidden by default; a chevron button (▾/▴) expands/collapses it [`WatchedSites.test.tsx`]

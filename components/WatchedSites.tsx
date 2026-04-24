@@ -106,7 +106,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   const [sniffing, setSniffing] = useState<Set<string>>(new Set());
   const [selectedEntry, setSelectedEntry] = useState<Record<string, number>>({});
   const [hoveredEntry, setHoveredEntry] = useState<Record<string, number>>({});
-  const [modalScreenshot, setModalScreenshot] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState<{ entries: ChangeEntry[]; initialIndex: number } | null>(null);
   const [sniffPhase, setSniffPhase] = useState(0);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [editingCard, setEditingCard] = useState<string | null>(null);
@@ -364,8 +364,12 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
 
   return (
     <>
-      {modalScreenshot && (
-        <ScreenshotModal src={modalScreenshot} onClose={() => setModalScreenshot(null)} />
+      {modalOpen && (
+        <ScreenshotModal
+          entries={modalOpen.entries}
+          initialIndex={modalOpen.initialIndex}
+          onClose={() => setModalOpen(null)}
+        />
       )}
 
       <section className="max-w-[1080px] mx-auto px-6 pt-4 pb-16">
@@ -416,7 +420,12 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                   onClick={e => {
                     e.stopPropagation();
                     if (isExpanded && panelScreenshot) {
-                      setModalScreenshot(panelScreenshot);
+                      const modalEntries = histEntries.filter(e => !!e.screenshot);
+                      const initIdx = Math.max(
+                        0,
+                        modalEntries.findIndex(e => e.id === histEntry?.id),
+                      );
+                      if (modalEntries.length > 0) setModalOpen({ entries: modalEntries, initialIndex: initIdx });
                     } else {
                       toggleCard(site.id);
                     }
