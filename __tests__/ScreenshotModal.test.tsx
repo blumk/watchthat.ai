@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import ScreenshotModal from "@/components/ScreenshotModal";
 import type { ChangeEntry } from "@/lib/db";
 
@@ -34,12 +34,50 @@ describe("ScreenshotModal", () => {
     // Image reflects the initialIndex entry.
     const img = screen.getByRole("img", { name: /middle entry/i }) as HTMLImageElement;
     expect(img.src).toBe("https://example.test/two.png");
-    // Rail lists every entry's description.
-    expect(screen.getByText("Latest change: price rose.")).toBeInTheDocument();
-    expect(screen.getByText("Middle entry")).toBeInTheDocument();
-    expect(screen.getByText("Initial snapshot taken.")).toBeInTheDocument();
+    // Rail lists every entry (scoped to the rail).
+    const rail = screen.getByRole("complementary", { name: /change history/i });
+    expect(within(rail).getByText("Latest change: price rose.")).toBeInTheDocument();
+    expect(within(rail).getByText("Middle entry")).toBeInTheDocument();
+    expect(within(rail).getByText("Initial snapshot taken.")).toBeInTheDocument();
     // Counter reflects position.
     expect(screen.getByText("2 / 3")).toBeInTheDocument();
+  });
+
+  it("preloads every entry screenshot in a hidden layer for flicker-free nav", () => {
+    render(<ScreenshotModal entries={entries} initialIndex={0} onClose={jest.fn()} />);
+    const all = Array.from(document.querySelectorAll("img")) as HTMLImageElement[];
+    const srcs = all.map((el) => el.src);
+    // Every entry's screenshot appears somewhere in the DOM (main panel or
+    // hidden preload block) so the browser fetches it up front.
+    expect(srcs).toEqual(
+      expect.arrayContaining([
+        "https://example.test/one.png",
+        "https://example.test/two.png",
+        "https://example.test/three.png",
+      ]),
+    );
+  });
+
+  it("hovering a rail entry previews that screenshot without pinning it", () => {
+    render(<ScreenshotModal entries={entries} initialIndex={0} onClose={jest.fn()} />);
+    const rail = screen.getByRole("complementary", { name: /change history/i });
+    // Hover the third entry.
+    fireEvent.mouseEnter(within(rail).getByText("Initial snapshot taken."));
+    expect((screen.getByAltText(/initial snapshot/i) as HTMLImageElement).src).toBe(
+      "https://example.test/three.png",
+    );
+    // Pinned index (ArrowDown reference) is still 0 → arrow should go to 1.
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+    expect((screen.getByAltText(/middle entry/i) as HTMLImageElement).src).toBe(
+      "https://example.test/two.png",
+    );
+  });
+
+  it("clicking the Close button calls onClose", () => {
+    const onClose = jest.fn();
+    render(<ScreenshotModal entries={entries} initialIndex={0} onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: /close/i }));
+    expect(onClose).toHaveBeenCalled();
   });
 
   it("steps forward/back through entries with ArrowDown/ArrowUp", () => {

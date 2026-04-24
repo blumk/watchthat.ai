@@ -13,7 +13,6 @@ const MAX_SCALE = 8;
 
 type View = { scale: number; x: number; y: number };
 
-// zoomAt: zoom to newScale keeping the point (cx, cy) — relative to container center — fixed
 function zoomAt(v: View, newScale: number, cx: number, cy: number, minScale: number): View {
   const s = Math.min(Math.max(newScale, minScale), MAX_SCALE);
   if (s <= minScale) return { scale: minScale, x: 0, y: 0 };
@@ -41,9 +40,17 @@ function timeAgo(ts: number): string {
 export default function ScreenshotModal({ entries, initialIndex, onClose }: Props) {
   const safeInitial = Math.min(Math.max(0, initialIndex), Math.max(0, entries.length - 1));
   const [index, setIndex] = useState(safeInitial);
+  // Hovering a rail row shows that entry in the main panel without pinning
+  // it. Leaving the rail reverts to the pinned `index`. Keyboard/clicks pin.
+  const [hoverIndex, _setHoverIndex] = useState<number | null>(null);
+  const hoverIndexRef = useRef<number | null>(null);
+  function setHoverIndex(v: number | null) {
+    hoverIndexRef.current = v;
+    _setHoverIndex(v);
+  }
+
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
-  // Mirror view in a ref so wheel/touch handlers always see latest value without stale closures
   const viewRef = useRef<View>({ scale: 1, x: 0, y: 0 });
   const fitScaleRef = useRef(1);
   const [view, _setView] = useState<View>({ scale: 1, x: 0, y: 0 });
@@ -56,9 +63,10 @@ export default function ScreenshotModal({ entries, initialIndex, onClose }: Prop
   const pinchDist = useRef<number | null>(null);
   const pinchMid = useRef({ x: 0, y: 0 });
 
-  const entry = entries[index];
-  const src = entry?.screenshot ?? null;
-  const alt = entry ? `Screenshot — ${entry.description}` : "Screenshot";
+  const displayIndex = hoverIndex ?? index;
+  const displayEntry = entries[displayIndex];
+  const displaySrc = displayEntry?.screenshot ?? null;
+  const alt = displayEntry ? `Screenshot — ${displayEntry.description}` : "Screenshot";
 
   function applyView(updater: (v: View) => View) {
     const next = updater(viewRef.current);
@@ -66,7 +74,6 @@ export default function ScreenshotModal({ entries, initialIndex, onClose }: Prop
     _setView(next);
   }
 
-  // On image load: compute the scale that fits the natural image into the viewport
   function computeFit() {
     const img = imgRef.current;
     const container = containerRef.current;
@@ -74,7 +81,7 @@ export default function ScreenshotModal({ entries, initialIndex, onClose }: Prop
     const fit = Math.min(
       container.clientWidth / img.naturalWidth,
       container.clientHeight / img.naturalHeight,
-      1 // never upscale beyond natural size for the initial fit
+      1,
     );
     fitScaleRef.current = fit;
     setFitScale(fit);
@@ -82,17 +89,32 @@ export default function ScreenshotModal({ entries, initialIndex, onClose }: Prop
     setLoaded(true);
   }
 
-  // Reset zoom/pan whenever the displayed image changes; new <img>'s onLoad
-  // will recompute fit. Without this, switching between two images keeps the
-  // prior pan offset and briefly shows the new image at the wrong position.
+  // When the displayed src changes: reset pan/zoom, then decide whether to
+  // hide the image. If the new src is already cached (preloaded below), the
+  // onLoad handler effectively never fires for it, so we compute fit
+  // synchronously and skip the blank-flash that setLoaded(false) would cause.
   useEffect(() => {
     viewRef.current = { scale: 1, x: 0, y: 0 };
     _setView({ scale: 1, x: 0, y: 0 });
-    setLoaded(false);
-  }, [src]);
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0 && img.currentSrc) {
+      computeFit();
+    } else {
+      setLoaded(false);
+    }
+  }, [displaySrc]);
 
-  // Keyboard: Escape closes, Arrow Up/Down (and Left/Right) step between entries
+  // Keyboard: Escape closes, arrows step (navigates from whichever entry the
+  // user is currently looking at — hover if any, otherwise the pinned index).
   useEffect(() => {
+    const step = (delta: 1 | -1) => {
+      setIndex((i) => {
+        const from = hoverIndexRef.current ?? i;
+        const next = from + delta;
+        return Math.min(entries.length - 1, Math.max(0, next));
+      });
+      setHoverIndex(null);
+    };
     const h = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose();
@@ -100,17 +122,16 @@ export default function ScreenshotModal({ entries, initialIndex, onClose }: Prop
       }
       if (e.key === "ArrowDown" || e.key === "ArrowRight") {
         e.preventDefault();
-        setIndex((i) => Math.min(entries.length - 1, i + 1));
+        step(1);
       } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
         e.preventDefault();
-        setIndex((i) => Math.max(0, i - 1));
+        step(-1);
       }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [onClose, entries.length]);
 
-  // Wheel zoom — non-passive so we can preventDefault
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -126,13 +147,11 @@ export default function ScreenshotModal({ entries, initialIndex, onClose }: Prop
     return () => el.removeEventListener("wheel", h);
   }, []);
 
-  // Recompute fit on window resize
   useEffect(() => {
     window.addEventListener("resize", computeFit);
     return () => window.removeEventListener("resize", computeFit);
   }, []);
 
-  // Mouse drag to pan
   function onMouseDown(e: React.MouseEvent) {
     if (e.button !== 0) return;
     dragging.current = true;
@@ -151,7 +170,6 @@ export default function ScreenshotModal({ entries, initialIndex, onClose }: Prop
   }
   function onMouseUp() { dragging.current = false; }
 
-  // Touch: pinch-to-zoom + single-finger pan
   function onTouchStart(e: React.TouchEvent) {
     if (e.touches.length === 2) {
       pinchDist.current = touchDist(e.touches);
@@ -193,59 +211,79 @@ export default function ScreenshotModal({ entries, initialIndex, onClose }: Prop
     }
   }
 
-  // Show percentage relative to natural size (100% = pixel-perfect)
   const pct = Math.round(view.scale * 100);
   const atFit = view.scale <= fitScale + 0.001;
 
-  if (!entry) return null;
+  if (!displayEntry) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col md:flex-row">
-      {/* ── Image column ── */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Zoomable image area — clicking the backdrop closes */}
-        <div
-          ref={containerRef}
-          className="flex-1 flex items-center justify-center overflow-hidden select-none"
-          style={{ touchAction: "none" }}
-          onClick={e => { if (!dragMoved.current && e.target === containerRef.current) onClose(); }}
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseUp={onMouseUp}
-          onMouseLeave={onMouseUp}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
-        >
-          {src && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              ref={imgRef}
-              src={src}
-              alt={alt}
-              draggable={false}
-              onLoad={computeFit}
-              className="rounded select-none"
-              style={{
-                // No max-width/max-height — rendered at natural resolution so zoom-in is crisp
-                maxWidth: "none",
-                maxHeight: "none",
-                transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
-                transformOrigin: "center center",
-                cursor: view.scale > fitScale ? "grab" : "zoom-in",
-                willChange: "transform",
-                opacity: loaded ? 1 : 0,
-              }}
-            />
-          )}
+    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+      {/* ── Top bar: clearly frames the modal as its own surface ── */}
+      <header className="shrink-0 h-14 flex items-center justify-between px-5 border-b border-white/10 bg-black">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-xs font-mono text-white/50 uppercase tracking-widest">
+            Screenshot browser
+          </span>
+          <span className="hidden md:inline text-[11px] font-mono text-white/25 truncate">
+            {displayEntry.description}
+          </span>
         </div>
+        <div className="flex items-center gap-4">
+          <span className="hidden md:inline text-[10px] font-mono text-white/30 tracking-wide">
+            ↑/↓ navigate · Esc close
+          </span>
+          <button
+            aria-label="Close"
+            onClick={onClose}
+            className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xl leading-none flex items-center justify-center cursor-pointer border-none transition-colors"
+          >×</button>
+        </div>
+      </header>
 
-        {/* Controls bar */}
-        <div
-          className="shrink-0 h-14 flex items-center justify-between px-5 border-t border-white/10"
-          onClick={e => e.stopPropagation()}
-        >
-          <div className="flex items-center gap-2">
+      {/* ── Body: image + rail ── */}
+      <div className="flex-1 flex flex-col md:flex-row min-h-0">
+        {/* Image column */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+          <div
+            ref={containerRef}
+            className="flex-1 flex items-center justify-center overflow-hidden select-none"
+            style={{ touchAction: "none" }}
+            onClick={e => { if (!dragMoved.current && e.target === containerRef.current) onClose(); }}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseUp}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+          >
+            {displaySrc && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                ref={imgRef}
+                src={displaySrc}
+                alt={alt}
+                draggable={false}
+                onLoad={computeFit}
+                className="rounded select-none"
+                style={{
+                  maxWidth: "none",
+                  maxHeight: "none",
+                  transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+                  transformOrigin: "center center",
+                  cursor: view.scale > fitScale ? "grab" : "zoom-in",
+                  willChange: "transform",
+                  opacity: loaded ? 1 : 0,
+                }}
+              />
+            )}
+          </div>
+
+          {/* Zoom controls */}
+          <div
+            className="shrink-0 h-12 flex items-center gap-2 px-5 border-t border-white/10"
+            onClick={e => e.stopPropagation()}
+          >
             <button
               aria-label="Zoom out"
               onClick={() => applyView(v => zoomAt(v, v.scale / 1.5, 0, 0, fitScale))}
@@ -264,63 +302,81 @@ export default function ScreenshotModal({ entries, initialIndex, onClose }: Prop
               className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xl leading-none flex items-center justify-center disabled:opacity-25 cursor-pointer border-none transition-colors"
             >+</button>
             <span className="ml-3 text-xs font-mono text-white/40 select-none">
-              {index + 1} / {entries.length}
+              {displayIndex + 1} / {entries.length}
             </span>
           </div>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium cursor-pointer border-none transition-colors"
-          >Close</button>
         </div>
+
+        {/* ── Desktop right rail: changelog ── */}
+        <aside
+          aria-label="Change history"
+          onMouseLeave={() => setHoverIndex(null)}
+          className="hidden md:flex flex-col w-72 lg:w-80 shrink-0 border-l border-white/10 bg-white/[0.03] overflow-y-auto"
+        >
+          <div className="px-5 py-4 border-b border-white/10 sticky top-0 bg-black/90 backdrop-blur">
+            <div className="text-[11px] font-mono text-white/40 uppercase tracking-widest">
+              Change history
+            </div>
+            <div className="text-[10px] font-mono text-white/25 mt-1">
+              {entries.length} {entries.length === 1 ? "entry" : "entries"} · hover to preview
+            </div>
+          </div>
+          <ul className="flex-1">
+            {entries.map((e, i) => {
+              const isSelected = i === displayIndex;
+              const isPinned = i === index;
+              const dotColor =
+                e.classification === "major" ? "var(--red)"
+                : e.classification === "error" ? "var(--red)"
+                : e.classification === "quiet" ? "var(--green)"
+                : "var(--t3)";
+              return (
+                <li key={e.id}>
+                  <button
+                    onClick={() => { setIndex(i); setHoverIndex(null); }}
+                    onMouseEnter={() => setHoverIndex(i)}
+                    aria-current={isPinned ? "true" : undefined}
+                    className={`w-full text-left px-5 py-3 border-b border-white/5 cursor-pointer transition-colors ${
+                      isSelected ? "bg-white/10" : "hover:bg-white/5"
+                    } ${isSelected ? "border-l-2 border-l-white/60" : "border-l-2 border-l-transparent"}`}
+                  >
+                    <div className="flex items-start gap-2 min-w-0">
+                      {e.emoji ? (
+                        <span className="shrink-0 text-sm leading-none mt-px">{e.emoji}</span>
+                      ) : (
+                        <span
+                          className="shrink-0 w-1.5 h-1.5 rounded-full mt-1.5"
+                          style={{ background: dotColor }}
+                        />
+                      )}
+                      <span className={`text-xs flex-1 leading-snug ${isSelected ? "text-white" : "text-white/70"}`}>
+                        {e.description}
+                      </span>
+                    </div>
+                    <div className="mt-1 ml-4 text-[10px] font-mono text-white/30">
+                      {timeAgo(e.timestamp)}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </aside>
       </div>
 
-      {/* ── Desktop right rail: changelog ── */}
-      <aside
-        aria-label="Change history"
-        className="hidden md:flex flex-col w-72 lg:w-80 shrink-0 border-l border-white/10 overflow-y-auto"
+      {/* Preload every entry's screenshot so keyboard/hover/click
+          navigation is instant — no blank flash between images. */}
+      <div
+        aria-hidden="true"
+        style={{ position: "absolute", width: 0, height: 0, overflow: "hidden", pointerEvents: "none" }}
       >
-        <div className="px-4 py-3 text-xs font-mono text-white/40 uppercase tracking-wide border-b border-white/10">
-          Change history
-        </div>
-        <ul className="flex-1">
-          {entries.map((e, i) => {
-            const isSelected = i === index;
-            const dotColor =
-              e.classification === "major" ? "var(--red)"
-              : e.classification === "error" ? "var(--red)"
-              : e.classification === "quiet" ? "var(--green)"
-              : "var(--t3)";
-            return (
-              <li key={e.id}>
-                <button
-                  onClick={() => setIndex(i)}
-                  aria-current={isSelected ? "true" : undefined}
-                  className={`w-full text-left px-4 py-3 border-b border-white/5 cursor-pointer transition-colors ${
-                    isSelected ? "bg-white/10" : "hover:bg-white/5"
-                  }`}
-                >
-                  <div className="flex items-start gap-2 min-w-0">
-                    {e.emoji ? (
-                      <span className="shrink-0 text-sm leading-none mt-px">{e.emoji}</span>
-                    ) : (
-                      <span
-                        className="shrink-0 w-1.5 h-1.5 rounded-full mt-1.5"
-                        style={{ background: dotColor }}
-                      />
-                    )}
-                    <span className={`text-xs flex-1 leading-snug ${isSelected ? "text-white" : "text-white/70"}`}>
-                      {e.description}
-                    </span>
-                  </div>
-                  <div className="mt-1 ml-4 text-[10px] font-mono text-white/30">
-                    {timeAgo(e.timestamp)}
-                  </div>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </aside>
+        {entries.map((e) =>
+          e.screenshot ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={e.id} src={e.screenshot} alt="" />
+          ) : null,
+        )}
+      </div>
     </div>
   );
 }

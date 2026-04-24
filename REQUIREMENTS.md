@@ -53,9 +53,11 @@ this doc is the human-readable summary.
 
 **Full-screen modal (`ScreenshotModal`)**
 - Full-black backdrop; pan/zoom/pinch on the image [`ScreenshotModal.test.tsx`]
-- Desktop (≥768px): right rail lists every history entry with a screenshot; clicking a row jumps to that screenshot [`ScreenshotModal.test.tsx`]
-- Keyboard: `Escape` closes, `ArrowUp`/`ArrowLeft` steps to the previous entry, `ArrowDown`/`ArrowRight` steps to the next; clamped at the ends [`ScreenshotModal.test.tsx`]
-- Counter (`N / total`) in the controls bar reflects the selected entry [`ScreenshotModal.test.tsx`]
+- Top bar frames the modal: "Screenshot browser" label, current entry description (≥768px), keyboard hint (≥768px), prominent × close button [`ScreenshotModal.test.tsx`]
+- Desktop (≥768px): right rail lists every history entry with a screenshot; clicking a row pins that screenshot; hovering previews it without changing the pin [`ScreenshotModal.test.tsx`]
+- All entry screenshots are preloaded into a hidden layer on mount so keyboard / hover / click navigation is flicker-free [`ScreenshotModal.test.tsx`]
+- Keyboard: `Escape` closes, `ArrowUp`/`ArrowLeft` steps to the previous entry, `ArrowDown`/`ArrowRight` steps to the next — both navigate from whichever entry is currently previewed (hover or pin); clamped at the ends [`ScreenshotModal.test.tsx`]
+- Counter (`N / total`) in the controls bar reflects the currently displayed entry [`ScreenshotModal.test.tsx`]
 
 **Change history log**
 - All fetches (including quiet/no-change checks) are appended as `ChangeEntry` records
