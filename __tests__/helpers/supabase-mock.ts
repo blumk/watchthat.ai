@@ -32,6 +32,7 @@ export interface FakeSnapshot {
   change_description: string | null;
   change_classification: "major" | "minor" | "quiet" | "error" | null;
   change_emoji: string | null;
+  facts: Record<string, string> | null;
 }
 
 export interface FakeStorageObject {
@@ -220,6 +221,8 @@ class Query {
               change_classification:
                 (row.change_classification as FakeSnapshot["change_classification"]) ?? null,
               change_emoji: (row.change_emoji as string | null) ?? null,
+              facts:
+                (row.facts as Record<string, string> | null | undefined) ?? null,
             };
             this.state.snapshots.push(created);
             return { data: [created], error: null };

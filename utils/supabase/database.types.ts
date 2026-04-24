@@ -48,6 +48,9 @@ export type Database = {
           change_description: string | null;
           change_classification: "major" | "minor" | "quiet" | "error" | null;
           change_emoji: string | null;
+          // Canonicalized fact bag extracted from raw HTML (JSON-LD + meta).
+          // Null on pre-facts snapshots and when extraction yields no signal.
+          facts: Json | null;
         };
         Insert: {
           id?: string;
@@ -60,6 +63,7 @@ export type Database = {
           change_description?: string | null;
           change_classification?: "major" | "minor" | "quiet" | "error" | null;
           change_emoji?: string | null;
+          facts?: Json | null;
         };
         Update: Partial<Database["public"]["Tables"]["snapshots"]["Insert"]>;
         Relationships: [];

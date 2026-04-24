@@ -32,12 +32,17 @@ function makeRequest(body: unknown): Request {
   });
 }
 
-function mockFirecrawl(markdown: string, screenshot: string | null = FIRECRAWL_SHOT) {
+function mockFirecrawl(
+  markdown: string,
+  screenshot: string | null = FIRECRAWL_SHOT,
+  rawHtml = "",
+) {
   MockFirecrawlApp.mockImplementation(
     () =>
       ({
         scrape: jest.fn().mockResolvedValue({
           markdown,
+          rawHtml,
           actions: screenshot ? { screenshots: [screenshot] } : undefined,
         }),
       }) as unknown as InstanceType<typeof FirecrawlApp>,
@@ -225,6 +230,38 @@ describe("POST /api/scrape", () => {
     await POST(makeRequest({ url: "https://example.com" }));
     await POST(makeRequest({ url: "HTTPS://EXAMPLE.COM/" }));
     expect(state.pages).toHaveLength(1);
+  });
+
+  it("flips the content hash on structured-data changes even when markdown is identical", async () => {
+    const jsonLd = (rating: string, reviews: string) => `
+      <script type="application/ld+json">
+      {"@type":"MobileApplication","name":"Lingo","aggregateRating":{"ratingValue":"${rating}","reviewCount":"${reviews}"}}
+      </script>`;
+    // First scrape with rating 4.5 / 1217 reviews.
+    mockFirecrawl("# Lingo — 1.2k ratings", FIRECRAWL_SHOT, jsonLd("4.5", "1217"));
+    await POST(makeRequest({ url: "https://example.com" }));
+    expect(state.snapshots[0].facts).toMatchObject({
+      "MobileApplication.aggregateRating.ratingValue": "4.5",
+      "MobileApplication.aggregateRating.reviewCount": "1217",
+    });
+
+    // Rating drops to 4.4, reviews grow — markdown still says "1.2k ratings".
+    state.pages[0].last_fetched_at = new Date(Date.now() - 600_000).toISOString();
+    mockFirecrawl("# Lingo — 1.2k ratings", FIRECRAWL_SHOT, jsonLd("4.4", "1243"));
+
+    const res = await POST(makeRequest({ url: "https://example.com" }));
+    const body = await res.json();
+    expect(body.newChange).toBe(true);
+    expect(body.snapshot.content_hash).not.toBe(state.snapshots[0].content_hash);
+    expect(mockDescribeChange).toHaveBeenCalledTimes(1);
+    // describeChange receives the structured diff so it can quote exact values.
+    const arg = mockDescribeChange.mock.calls[0][0];
+    expect(arg.factsDiff).toEqual(
+      expect.arrayContaining([
+        { key: "MobileApplication.aggregateRating.ratingValue", before: "4.5", after: "4.4" },
+        { key: "MobileApplication.aggregateRating.reviewCount", before: "1217", after: "1243" },
+      ]),
+    );
   });
 
   it("falls back to a generic description if describeChange throws", async () => {

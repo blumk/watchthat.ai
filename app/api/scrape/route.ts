@@ -14,6 +14,13 @@
 //   - Hash-equal inserts store `markdown = NULL` — the text would be a
 //     byte-for-byte duplicate of an earlier row, so readers resolve it from
 //     the earliest snapshot with the same (page_id, content_hash).
+//   - Firecrawl also returns raw HTML; we extract a safelisted projection
+//     of JSON-LD + OpenGraph/Twitter meta into a "fact bag" (see lib/facts).
+//     The content hash is over `markdown + "\n--\n" + factsBlob` so
+//     structured changes (rating 4.5 → 4.4, review count 1217 → 1243) flip
+//     the hash even when the rendered markdown rounds them away. The bag
+//     is also diffed against the previous snapshot's bag and passed to
+//     describeChange so the prose can quote exact before→after numbers.
 //   - Page's `latest_snapshot_id` is updated to point at the new row.
 //
 // Response: `{ snapshot: SnapshotWithUrl, cached, newChange }`.
@@ -26,6 +33,7 @@ import { normalizeUrl, extractLabel } from "@/lib/url";
 import { sha256Hex } from "@/lib/sha256";
 import { describeChange } from "@/lib/describe-change";
 import { decorateSnapshot, type SnapshotRow } from "@/lib/snapshot";
+import { extractFacts, diffFacts, factsBlob, type FactBag } from "@/lib/facts";
 
 const SCRAPE_TIMEOUT_MS = 300_000;
 const DEDUP_WINDOW_MS = 300_000; // 5 minutes
@@ -105,16 +113,24 @@ export async function POST(request: Request) {
 
   // Firecrawl fetch.
   let markdown: string;
+  let rawHtml: string;
   let firecrawlScreenshot: string | null;
   try {
     const fetched = await runFirecrawl(url);
     markdown = fetched.markdown;
+    rawHtml = fetched.rawHtml;
     firecrawlScreenshot = fetched.screenshot;
   } catch (err) {
     return firecrawlErrorResponse(url, err);
   }
 
-  const contentHash = sha256Hex(markdown);
+  const facts = extractFacts(rawHtml);
+  const hasFacts = Object.keys(facts).length > 0;
+  // Fold the fact bag into the content hash. Raw HTML itself is hopeless to
+  // hash (nonces, ad tags, timestamps), but the canonicalized bag is a
+  // narrow, safelisted projection — so 4.5 → 4.4 or 1217 → 1243 flips the
+  // hash while incidental HTML churn doesn't.
+  const contentHash = sha256Hex(markdown + "\n--\n" + factsBlob(facts));
 
   // Compare against the previous snapshot so we can skip Claude when nothing
   // meaningful changed. We still insert a new snapshot either way (keeps the
@@ -137,12 +153,15 @@ export async function POST(request: Request) {
     // (page_id, content_hash).
     const oldValue =
       prev.markdown ?? (await resolveMarkdown(svc, prev.page_id, prev.content_hash));
+    const prevFacts = (prev.facts as FactBag | null) ?? {};
+    const factsDiff = diffFacts(prevFacts, facts);
     try {
       const desc = await describeChange({
         oldValue: oldValue ?? "",
         newValue: markdown,
         watchTarget: "page content",
         url,
+        factsDiff,
       });
       description = desc.description;
       classification = desc.classification;
@@ -166,6 +185,7 @@ export async function POST(request: Request) {
       change_description: description,
       change_classification: classification,
       change_emoji: emoji,
+      facts: hasFacts ? (facts as unknown as FactBag) : null,
     })
     .select()
     .single();
@@ -193,7 +213,7 @@ export async function POST(request: Request) {
 
 async function runFirecrawl(
   url: string,
-): Promise<{ markdown: string; screenshot: string | null }> {
+): Promise<{ markdown: string; rawHtml: string; screenshot: string | null }> {
   const firecrawl = new FirecrawlApp({
     apiKey: process.env.FIRECRAWL_API_KEY ?? "",
   });
@@ -202,16 +222,20 @@ async function runFirecrawl(
     id.unref();
   });
   const result = await Promise.race([
+    // `rawHtml` preserves <script type="application/ld+json"> blocks (cleaned
+    // `html` sometimes strips them); extractFacts needs them.
     firecrawl.scrape(url, {
-      formats: ["markdown"],
+      formats: ["markdown", "rawHtml"],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       actions: [{ type: "screenshot" as const, fullPage: true }] as any,
     }),
     timeoutPromise,
   ]);
   const actions = result.actions as { screenshots?: string[] } | undefined;
+  const r = result as { markdown?: string; rawHtml?: string };
   return {
-    markdown: result.markdown ?? "",
+    markdown: r.markdown ?? "",
+    rawHtml: r.rawHtml ?? "",
     screenshot: actions?.screenshots?.[0] ?? null,
   };
 }
