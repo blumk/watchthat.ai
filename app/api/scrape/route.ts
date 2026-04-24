@@ -153,23 +153,39 @@ export async function POST(request: Request) {
     // (page_id, content_hash).
     const oldValue =
       prev.markdown ?? (await resolveMarkdown(svc, prev.page_id, prev.content_hash));
-    const prevFacts = (prev.facts as FactBag | null) ?? {};
-    const factsDiff = diffFacts(prevFacts, facts);
-    try {
-      const desc = await describeChange({
-        oldValue: oldValue ?? "",
-        newValue: markdown,
-        watchTarget: "page content",
-        url,
-        factsDiff,
-      });
-      description = desc.description;
-      classification = desc.classification;
-      emoji = desc.emoji ?? null;
-    } catch (err) {
-      console.error("[scrape] describe-change failed", err);
-      description = "Page content changed.";
-      classification = "minor";
+    const prevMarkdown = oldValue ?? "";
+    const markdownChanged = prevMarkdown !== markdown;
+    const prevHadFacts = prev.facts !== null;
+
+    // Cold-start of the fact-extraction feature: the previous snapshot
+    // predates extraction (prev.facts === null), so any "fact diff" would
+    // just be our system newly noticing structured data that was always
+    // there. If the markdown also hasn't moved, treat as quiet — the hash
+    // only flipped because the recipe now includes factsBlob. If markdown
+    // DID change, describe the markdown diff without a facts section.
+    const coldStart = !prevHadFacts;
+    if (coldStart && !markdownChanged) {
+      // No real change; leave description/classification/emoji at quiet defaults.
+    } else {
+      const factsDiff = prevHadFacts
+        ? diffFacts(prev.facts as FactBag, facts)
+        : [];
+      try {
+        const desc = await describeChange({
+          oldValue: prevMarkdown,
+          newValue: markdown,
+          watchTarget: "page content",
+          url,
+          factsDiff,
+        });
+        description = desc.description;
+        classification = desc.classification;
+        emoji = desc.emoji ?? null;
+      } catch (err) {
+        console.error("[scrape] describe-change failed", err);
+        description = "Page content changed.";
+        classification = "minor";
+      }
     }
   }
 
@@ -207,7 +223,13 @@ export async function POST(request: Request) {
   return NextResponse.json({
     snapshot: decorateSnapshot(snapshot as SnapshotRow),
     cached: false,
-    newChange: hashChanged && Boolean(page.latest_snapshot_id),
+    // A hash flip driven purely by our fact-extraction cold-start leaves
+    // classification="quiet" and description=null — don't surface that as a
+    // user-facing change event. Real changes produce a description.
+    newChange:
+      hashChanged &&
+      Boolean(page.latest_snapshot_id) &&
+      classification !== "quiet",
   });
 }
 

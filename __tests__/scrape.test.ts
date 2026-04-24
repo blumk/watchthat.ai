@@ -264,6 +264,33 @@ describe("POST /api/scrape", () => {
     );
   });
 
+  it("stays quiet on the cold-start scrape when a pre-facts snapshot gets fact data for the first time", async () => {
+    // Simulate a pre-rollout snapshot: facts column still null on the row
+    // even though the markdown + hash are populated.
+    await POST(makeRequest({ url: "https://example.com" }));
+    expect(state.snapshots).toHaveLength(1);
+    state.snapshots[0].facts = null;
+
+    // Next scrape, same markdown, but now the HTML carries JSON-LD.
+    state.pages[0].last_fetched_at = new Date(Date.now() - 600_000).toISOString();
+    mockFirecrawl(
+      "# Hello world",
+      FIRECRAWL_SHOT,
+      `<script type="application/ld+json">{"@type":"Product","name":"X","aggregateRating":{"ratingValue":"4.5"}}</script>`,
+    );
+
+    const res = await POST(makeRequest({ url: "https://example.com" }));
+    const body = await res.json();
+    expect(body.snapshot.change_classification).toBe("quiet");
+    expect(body.snapshot.change_description).toBeNull();
+    expect(body.newChange).toBe(false);
+    expect(mockDescribeChange).not.toHaveBeenCalled();
+    // Facts are still captured on the new row so subsequent diffs have a baseline.
+    expect(state.snapshots[1].facts).toMatchObject({
+      "Product.aggregateRating.ratingValue": "4.5",
+    });
+  });
+
   it("falls back to a generic description if describeChange throws", async () => {
     mockDescribeChange.mockRejectedValueOnce(new Error("claude down"));
     await POST(makeRequest({ url: "https://example.com" }));
