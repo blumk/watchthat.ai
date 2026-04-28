@@ -14,7 +14,7 @@ this doc is the human-readable summary.
 
 **URL input**
 - Text input with placeholder `https://example.com` [`Hero.test.tsx`]
-- Auto-focused on page load
+- Not auto-focused — keeping the on-screen keyboard collapsed on mobile until the user taps in
 - Pressing Enter submits the URL
 
 **Watch button**

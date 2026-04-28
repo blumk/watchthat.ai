@@ -74,7 +74,6 @@ export default function Hero({ onAdd, onDemo, hasSites }: Props) {
             }}
             className="flex-1 bg-transparent border-none outline-none text-[17px] font-mono text-[var(--t1)] placeholder-[var(--t3)] py-3.5 min-w-0"
             aria-label="Website URL to watch"
-            autoFocus
           />
 
           <button
