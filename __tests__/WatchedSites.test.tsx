@@ -313,6 +313,56 @@ describe("WatchedSites", () => {
     expect(patch.history[0].description).toBe("Price dropped from $99 to $79.");
   });
 
+  it("renders a tracked-value badge when trackedFact is present", () => {
+    render(
+      <WatchedSites
+        sites={[
+          makeSite({
+            trackedFact: {
+              key: "MobileApplication.aggregateRating.ratingValue",
+              value: "4.5",
+              displayName: "Rating",
+            },
+          }),
+        ]}
+        onUpdate={jest.fn()}
+        onRemove={jest.fn()}
+      />,
+    );
+    const badge = screen.getByLabelText("Tracking Rating");
+    expect(badge).toHaveTextContent("Rating");
+    expect(badge).toHaveTextContent("4.5");
+  });
+
+  it("prefixes history entries whose snapshot moved the tracked value", () => {
+    render(
+      <WatchedSites
+        sites={[
+          makeSite({
+            history: [
+              {
+                id: "h1",
+                timestamp: Date.now() - 10_000,
+                description: "Rating dropped.",
+                classification: "major",
+                trackedDelta: {
+                  displayName: "Rating",
+                  before: "4.5",
+                  after: "4.4",
+                },
+              },
+            ],
+          }),
+        ]}
+        onUpdate={jest.fn()}
+        onRemove={jest.fn()}
+      />,
+    );
+    // History entries only render when the card is expanded.
+    fireEvent.click(screen.getByRole("button", { name: /expand/i }));
+    expect(screen.getByText(/Rating\s+4\.5 → 4\.4/)).toBeInTheDocument();
+  });
+
   it("shows an ephemeral 'No change detected.' row after a refresh with no hash change", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,

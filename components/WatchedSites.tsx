@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { updateSite, removeSite } from "@/lib/db";
 import type { WatchedSite, ChangeEntry } from "@/lib/db";
 import type { ScrapeResponse } from "@/lib/snapshot";
+import type { FactBag } from "@/lib/facts";
+import { matchTargetToFact } from "@/lib/watch-target-match";
 import ScreenshotModal from "./ScreenshotModal";
 
 function makeEntry(
@@ -187,6 +189,12 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
       const classification = snapshot.change_classification;
       const hashChanged = snapshot.content_hash !== site.lastHash;
       const cleanHistory = (site.history ?? []).filter((e) => e.classification !== "error");
+
+      // Resolve the watch target against the fresh fact bag so the badge
+      // and any new history entry's delta reflect this fetch.
+      const snapFacts = (snapshot.facts as FactBag | null) ?? {};
+      const newTrackedFact = matchTargetToFact(site.watchTarget, snapFacts);
+
       const patch: Partial<WatchedSite> = {
         lastContent: resolvedMarkdown,
         lastScreenshot: snapshot.screenshot_url,
@@ -196,6 +204,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
         changed: classification !== null && classification !== "quiet",
         error: null,
         history: cleanHistory,
+        trackedFact: newTrackedFact,
         ...(pageTitle ? { label: pageTitle } : {}),
       };
 
@@ -204,17 +213,26 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
         snapshot.change_description &&
         (classification === "major" || classification === "minor")
       ) {
-        patch.history = [
-          ...cleanHistory,
-          makeEntry(
-            snapshot.change_description,
-            classification,
-            site.lastContent ?? undefined,
-            resolvedMarkdown ?? undefined,
-            snapshot.screenshot_url,
-            snapshot.change_emoji ?? undefined,
-          ),
-        ];
+        const newEntry = makeEntry(
+          snapshot.change_description,
+          classification,
+          site.lastContent ?? undefined,
+          resolvedMarkdown ?? undefined,
+          snapshot.screenshot_url,
+          snapshot.change_emoji ?? undefined,
+        );
+        // Annotate with a tracked-value delta when the fact moved.
+        if (newTrackedFact) {
+          const before = site.trackedFact?.value;
+          if (newTrackedFact.value !== before) {
+            newEntry.trackedDelta = {
+              displayName: newTrackedFact.displayName,
+              before,
+              after: newTrackedFact.value,
+            };
+          }
+        }
+        patch.history = [...cleanHistory, newEntry];
         clearNoChange(site.id);
       } else if (site.lastHash === null && cleanHistory.length === 0) {
         // First-ever fetch: anchor the log with an "Initial snapshot taken."
@@ -474,6 +492,15 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                         {subtitle}
                       </span>
                     )}
+                    {site.trackedFact && (
+                      <span
+                        aria-label={`Tracking ${site.trackedFact.displayName}`}
+                        className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-[var(--bg3)] border border-[var(--bdr)] text-[10px] font-mono text-[var(--t2)] leading-none"
+                      >
+                        <span className="text-[var(--t3)]">{site.trackedFact.displayName}</span>
+                        <span className="text-[var(--t1)]">{site.trackedFact.value}</span>
+                      </span>
+                    )}
                   </div>
 
                   {/* Time + actions */}
@@ -539,6 +566,15 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                               />
                             )}
                             <span className="text-xs text-[var(--t2)] flex-1 leading-snug">
+                              {entry.trackedDelta && (
+                                <span className="mr-1.5 font-mono text-[var(--t1)]">
+                                  {entry.trackedDelta.displayName}{" "}
+                                  {entry.trackedDelta.before !== undefined
+                                    ? `${entry.trackedDelta.before} → ${entry.trackedDelta.after}`
+                                    : entry.trackedDelta.after}
+                                  {" · "}
+                                </span>
+                              )}
                               {entry.description}
                             </span>
                             <div className="shrink-0 ml-1 text-right">

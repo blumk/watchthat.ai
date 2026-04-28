@@ -33,4 +33,5 @@ The top 30 story slots rotate as stories gain or lose points. Watching this page
   ],
   watchTarget: null,
   refreshInterval: null,
+  trackedFact: null,
 };

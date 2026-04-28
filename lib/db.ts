@@ -16,6 +16,8 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { Database } from "@/utils/supabase/database.types";
 import { normalizeUrl } from "@/lib/url";
 import { snapshotPublicUrl, type SnapshotRow } from "@/lib/snapshot";
+import type { FactBag } from "@/lib/facts";
+import { matchTargetToFact, type TargetMatch } from "@/lib/watch-target-match";
 
 export interface ChangeEntry {
   id: string;
@@ -26,6 +28,14 @@ export interface ChangeEntry {
   oldValue?: string;
   newValue?: string;
   screenshot?: string | null;
+  // Set when the user's watch target resolves to a fact-bag key AND the
+  // value at this snapshot differs from the previously-recorded value for
+  // the same key. Rendered as a prefix like "★ 4.5 → 4.4" in the log.
+  trackedDelta?: {
+    displayName: string;
+    before?: string;
+    after: string;
+  };
 }
 
 export interface WatchedSite {
@@ -44,6 +54,10 @@ export interface WatchedSite {
   history: ChangeEntry[];
   watchTarget: string | null;
   refreshInterval: number | null;
+  // Current resolved watch-target value pulled from the latest snapshot's
+  // fact bag. Null when the watch target is unset, doesn't match any fact
+  // key, or the latest snapshot has no facts.
+  trackedFact: TargetMatch | null;
 }
 
 type Client = SupabaseClient<Database>;
@@ -65,6 +79,7 @@ function emptySite(overrides: Partial<WatchedSite>): WatchedSite {
     history: [],
     watchTarget: null,
     refreshInterval: null,
+    trackedFact: null,
     ...overrides,
   };
 }
@@ -228,14 +243,53 @@ export async function getSites(): Promise<WatchedSite[]> {
     const pageId = row.pages?.id ?? null;
     const pageSnapId = row.pages?.latest_snapshot_id;
     const snap = pageSnapId ? byId.get(pageSnapId) : null;
-    const history = pageId ? historyByPage.get(pageId) ?? [] : [];
+    const baseHistory = pageId ? historyByPage.get(pageId) ?? [] : [];
     const resolvedMarkdown = snap
       ? snap.markdown ?? markdownByHash.get(`${snap.page_id}|${snap.content_hash}`) ?? null
       : null;
+
+    // Resolve the user's watch target against the latest snapshot's fact
+    // bag. When a match lands, annotate each history entry with the before
+    // → after delta for that key.
+    const latestFacts = (snap?.facts as FactBag | null) ?? {};
+    const trackedFact = matchTargetToFact(site.watchTarget, latestFacts);
+    const history = trackedFact
+      ? annotateHistoryWithDelta(baseHistory, byId, trackedFact)
+      : baseHistory;
+
     const hydrated = snap
       ? applySnapshot(site, snap, row.pages?.last_fetched_at ?? null, resolvedMarkdown)
       : site;
-    return { ...hydrated, history };
+    return { ...hydrated, history, trackedFact };
+  });
+}
+
+// Walk history (already chronological from getSites) and attach a
+// trackedDelta to each entry whose snapshot carries a different value for
+// the tracked key than the last entry we saw one on. Pure annotation — the
+// shared historyByPage entries are preserved by cloning.
+function annotateHistoryWithDelta(
+  entries: ChangeEntry[],
+  byId: Map<string, SnapshotRow>,
+  match: TargetMatch,
+): ChangeEntry[] {
+  let lastValue: string | undefined;
+  return entries.map((entry) => {
+    const snap = byId.get(entry.id);
+    const snapFacts = (snap?.facts as FactBag | null) ?? {};
+    const current = snapFacts[match.key];
+    if (current === undefined) return entry;
+    if (current === lastValue) return entry;
+    const annotated: ChangeEntry = {
+      ...entry,
+      trackedDelta: {
+        displayName: match.displayName,
+        before: lastValue,
+        after: current,
+      },
+    };
+    lastValue = current;
+    return annotated;
   });
 }
 

@@ -108,6 +108,94 @@ describe("getSites", () => {
     expect(sites[0].lastContent).toBe("# Original text");
   });
 
+  it("resolves watchTarget against the latest snapshot's facts and annotates history deltas", async () => {
+    await addSite("https://example.com");
+    const watch = state.watches[0];
+    // Set the watch target — simulates the user picking "App rating".
+    watch.watch_target = "app rating";
+    const pageId = state.pages[0].id;
+
+    const snapA = {
+      id: "snap-f-1",
+      page_id: pageId,
+      fetched_at: new Date(Date.now() - 180_000).toISOString(),
+      content_hash: "hash-a",
+      markdown: "# v1",
+      screenshot_path: null,
+      prev_snapshot_id: null,
+      change_description: null,
+      change_classification: "quiet" as const,
+      change_emoji: null,
+      facts: {
+        "MobileApplication.aggregateRating.ratingValue": "4.5",
+        "MobileApplication.aggregateRating.reviewCount": "1217",
+      },
+    };
+    const snapB = {
+      id: "snap-f-2",
+      page_id: pageId,
+      fetched_at: new Date(Date.now() - 60_000).toISOString(),
+      content_hash: "hash-b",
+      markdown: "# v2",
+      screenshot_path: null,
+      prev_snapshot_id: "snap-f-1",
+      change_description: "Rating dropped.",
+      change_classification: "major" as const,
+      change_emoji: "📉",
+      facts: {
+        "MobileApplication.aggregateRating.ratingValue": "4.4",
+        "MobileApplication.aggregateRating.reviewCount": "1243",
+      },
+    };
+    state.snapshots.push(snapA, snapB);
+    state.pages[0].latest_snapshot_id = snapB.id;
+
+    const [site] = await getSites();
+    // Badge: the matched key + current value lifted from the latest snapshot.
+    expect(site.trackedFact).toEqual({
+      key: "MobileApplication.aggregateRating.ratingValue",
+      value: "4.4",
+      displayName: "Rating",
+    });
+    // History: initial entry shows just the "after" value (no prior seen);
+    // the later entry shows a before → after delta.
+    expect(site.history[0].trackedDelta).toEqual({
+      displayName: "Rating",
+      before: undefined,
+      after: "4.5",
+    });
+    expect(site.history[1].trackedDelta).toEqual({
+      displayName: "Rating",
+      before: "4.5",
+      after: "4.4",
+    });
+  });
+
+  it("leaves trackedFact null when the watch target doesn't resolve against the facts", async () => {
+    await addSite("https://example.com");
+    state.watches[0].watch_target = "CEO name"; // no fact-bag counterpart
+    const pageId = state.pages[0].id;
+    state.snapshots.push({
+      id: "snap-no-match",
+      page_id: pageId,
+      fetched_at: new Date().toISOString(),
+      content_hash: "h",
+      markdown: "# x",
+      screenshot_path: null,
+      prev_snapshot_id: null,
+      change_description: null,
+      change_classification: "quiet" as const,
+      change_emoji: null,
+      facts: { "Product.name": "Widget" },
+    });
+    state.pages[0].latest_snapshot_id = "snap-no-match";
+
+    const [site] = await getSites();
+    expect(site.trackedFact).toBeNull();
+    // History entries carry no trackedDelta either.
+    expect(site.history.every((e) => e.trackedDelta === undefined)).toBe(true);
+  });
+
   it("hydrates history from past snapshots with change descriptions", async () => {
     await addSite("https://example.com");
     const pageId = state.pages[0].id;
