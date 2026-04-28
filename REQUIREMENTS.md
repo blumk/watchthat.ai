@@ -20,6 +20,7 @@ this doc is the human-readable summary.
 **Watch button**
 - Always visible; click submits the current input value [`Hero.test.tsx`]
 - No-ops when input is empty
+- Submitting a URL the system has seen before (page row + at least one snapshot already exist) skips the WatchSetup loading screen entirely — `addSite` + `getSites` resolve from cached server-side data and the user lands on the watchlist with the full change log already populated. New URLs continue to flow through the WatchSetup chat for onboarding [untested]
 
 **Demo**
 - "Try with news.ycombinator.com →" link shown when no sites are being watched

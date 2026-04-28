@@ -11,6 +11,7 @@ import WatchSetup from "@/components/WatchSetup";
 import { getSites, addSite, updateSite, removeSite } from "@/lib/db";
 import { readCachedSites, writeCachedSites } from "@/lib/siteCache";
 import { EXAMPLE_SITE } from "@/lib/example-site";
+import { normalizeUrl } from "@/lib/url";
 import type { WatchedSite, ChangeEntry } from "@/lib/db";
 import type { ClientSnapshot } from "@/lib/snapshot";
 
@@ -76,9 +77,48 @@ export default function Home() {
     });
   }, []);
 
-  function handleSetup(url: string) {
-    const normalized = url.match(/^https?:\/\//) ? url : `https://${url}`;
-    setSetupUrl(normalized);
+  async function handleSetup(url: string) {
+    const normalizedHttp = url.match(/^https?:\/\//) ? url : `https://${url}`;
+    let canonicalUrl: string;
+    try {
+      canonicalUrl = normalizeUrl(normalizedHttp);
+    } catch {
+      // Invalid URL — fall through to the setup flow which will surface the
+      // error via /api/scrape. Same UX as before this fast-path was added.
+      setSetupUrl(normalizedHttp);
+      return;
+    }
+
+    // Two cheap server hits before we decide. addSite is an idempotent upsert
+    // (fast); getSites pulls the now-current watch list with full snapshot
+    // history hydrated. For URLs another user has already watched the page
+    // shows up with `lastHash` populated, letting us skip WatchSetup's
+    // loading screen entirely.
+    try {
+      await addSite(canonicalUrl);
+    } catch (err) {
+      console.error("[handleSetup] addSite failed", err);
+      setSetupUrl(normalizedHttp);
+      return;
+    }
+    let loaded: WatchedSite[];
+    try {
+      loaded = await getSites();
+    } catch (err) {
+      console.error("[handleSetup] getSites failed", err);
+      setSetupUrl(normalizedHttp);
+      return;
+    }
+    commitSites(loaded);
+
+    const newSite = loaded.find((s) => s.url === canonicalUrl);
+    if (newSite?.lastHash) {
+      // Page is already known — show the watchlist with cached data immediately.
+      setView("watchlist");
+      return;
+    }
+    // First-ever fetch of this URL — fall through to onboarding.
+    setSetupUrl(normalizedHttp);
   }
 
   async function handleImmediateAdd(
@@ -110,7 +150,15 @@ export default function Home() {
       };
       finalSite = { ...site, ...patch };
     }
-    commitSites((prev) => (prev.some((s) => s.id === finalSite.id) ? prev : [...prev, finalSite]));
+    // Merge into an existing entry if handleSetup already optimistically
+    // added a stub for this URL; otherwise append.
+    commitSites((prev) => {
+      const idx = prev.findIndex((s) => s.id === finalSite.id);
+      if (idx === -1) return [...prev, finalSite];
+      const next = [...prev];
+      next[idx] = { ...next[idx], ...finalSite };
+      return next;
+    });
     setView("watchlist");
     return site.id;
   }
