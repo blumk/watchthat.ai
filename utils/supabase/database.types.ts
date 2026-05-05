@@ -74,7 +74,6 @@ export type Database = {
           user_id: string;
           page_id: string;
           created_at: string;
-          last_seen_snapshot_id: string | null;
           watch_target: string | null;
         };
         Insert: {
@@ -82,7 +81,6 @@ export type Database = {
           user_id: string;
           page_id: string;
           created_at?: string;
-          last_seen_snapshot_id?: string | null;
           watch_target?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["watches"]["Insert"]>;
