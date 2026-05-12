@@ -114,6 +114,8 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   const [editingCard, setEditingCard] = useState<string | null>(null);
   const [editUrl, setEditUrl] = useState("");
   const [downloading, setDownloading] = useState<string | null>(null);
+  // Site id whose share URL was just copied — shows brief "Copied!" feedback.
+  const [shared, setShared] = useState<string | null>(null);
   // Ephemeral "No change detected" indicator per site — set after a refresh
   // that didn't move the hash, cleared the next time a real history entry
   // (change / initial / error) lands. Not persisted.
@@ -278,6 +280,26 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   function handleRemove(id: string) {
     void removeSite(id);
     onRemove(id);
+  }
+
+  async function handleShare(site: WatchedSite) {
+    if (!site.pageId) return;
+    const url = `${window.location.origin}/p/${site.pageId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      // Fallback: select the URL via a hidden input if Clipboard API is blocked.
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); } catch { /* give up silently */ }
+      document.body.removeChild(ta);
+    }
+    setShared(site.id);
+    setTimeout(() => setShared((curr) => (curr === site.id ? null : curr)), 1500);
   }
 
   async function downloadSiteHistory(site: WatchedSite) {
@@ -652,7 +674,7 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                         </div>
                       </>
                     ) : (
-                      <div className="flex justify-between items-center">
+                      <div className="flex justify-between items-center gap-3">
                         <button
                           aria-label="Download history"
                           onClick={() => downloadSiteHistory(site)}
@@ -661,6 +683,15 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                         >
                           {downloading === site.id ? "Zipping…" : "Download ↓"}
                         </button>
+                        {site.pageId && (
+                          <button
+                            aria-label="Copy share link"
+                            onClick={() => handleShare(site)}
+                            className="text-xs font-mono text-[var(--t3)] hover:text-[var(--t1)] transition-colors cursor-pointer bg-transparent border-none"
+                          >
+                            {shared === site.id ? "Copied ✓" : "Share ↗"}
+                          </button>
+                        )}
                         <button
                           aria-label="Edit"
                           onClick={() => openEdit(site)}

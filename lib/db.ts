@@ -40,6 +40,9 @@ export interface ChangeEntry {
 
 export interface WatchedSite {
   id: string;
+  // The shared page row this watch points at. Distinct from `id` (the watch
+  // row id, per-user) — needed to build public share URLs like /p/<pageId>.
+  pageId: string;
   url: string;
   label: string;
   lastChecked: number | null;
@@ -65,6 +68,7 @@ type Client = SupabaseClient<Database>;
 function emptySite(overrides: Partial<WatchedSite>): WatchedSite {
   return {
     id: "",
+    pageId: "",
     url: "",
     label: "",
     lastChecked: null,
@@ -133,6 +137,7 @@ function rowToSite(row: WatchRow): WatchedSite | null {
   if (!row.pages) return null;
   return emptySite({
     id: row.id,
+    pageId: row.pages.id,
     url: row.pages.url,
     label: row.pages.label,
     watchTarget: row.watch_target,
@@ -321,6 +326,7 @@ export async function addSite(
   };
   return emptySite({
     id: json.watch.id,
+    pageId: json.page.id,
     url: json.page.url,
     label: json.page.label,
     watchTarget: json.watch.watch_target,

@@ -54,6 +54,11 @@ this doc is the human-readable summary.
 - Clicking the thumbnail opens a full-screen modal [`WatchedSites.test.tsx`]
 - Screenshot panel on the right of the history list also opens the modal on click
 
+**Share button**
+- Each expanded card footer shows a "Share ↗" button next to Download / Edit
+- Clicking it copies `${origin}/p/<pageId>` to the clipboard; button label flips to "Copied ✓" briefly [`WatchedSites.test.tsx`]
+- Hidden when the site has no `pageId` (e.g. the demo example site)
+
 **Full-screen modal (`ScreenshotModal`)**
 - Full-black backdrop; pan/zoom/pinch on the image [`ScreenshotModal.test.tsx`]
 - Top bar frames the modal: "Screenshot browser" label, current entry description (≥768px), keyboard hint (≥768px), prominent × close button [`ScreenshotModal.test.tsx`]
@@ -150,6 +155,18 @@ change log is consistent across clients watching the same page.
 - Different inputs → different hashes [`hash.test.ts`]
 - Handles empty string [`hash.test.ts`]
 - Produces different hashes for similar inputs (collision resistance) [`hash.test.ts`]
+
+---
+
+## Share page (`/p/<pageId>`)
+
+Public, read-only view of a page's screenshot + change history. No login required; UUIDs (122 bits) act as the access token. Data read via service role so the visitor doesn't need an RLS-granting watch row.
+
+- `/p/<uuid>` renders the page label, source URL (linked), last-checked timestamp, current screenshot, and a clickable change-log rail. Clicking a rail entry swaps the displayed screenshot in place [untested — manual]
+- `/p/<malformed>` returns 404 without hitting the DB (regex pre-validates) [untested — manual]
+- `/p/<valid-but-unknown-uuid>` returns 404 after the page lookup misses [untested — manual]
+- Page emits `<meta name="robots" content="noindex,nofollow">` to keep share URLs out of search engines
+- Render is `force-dynamic` — no stale cache across snapshot updates
 
 ---
 

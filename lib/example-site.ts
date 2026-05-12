@@ -5,6 +5,7 @@ import type { WatchedSite } from "@/lib/db";
 // keep lastContent as a short stub — real content lands after the first fetch.
 export const EXAMPLE_SITE: WatchedSite = {
   id: "example-hackernews",
+  pageId: "example-hackernews-page",
   url: "https://news.ycombinator.com/",
   label: "news.ycombinator.com",
   lastChecked: 1745136000000,

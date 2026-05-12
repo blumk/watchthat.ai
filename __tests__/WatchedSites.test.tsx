@@ -313,6 +313,27 @@ describe("WatchedSites", () => {
     expect(patch.history[0].description).toBe("Price dropped from $99 to $79.");
   });
 
+  it("copies a /p/<pageId> share URL to the clipboard when the Share button is clicked", async () => {
+    const writeText = jest.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: { writeText },
+    });
+    // jsdom's location.origin is "http://localhost" by default — fine for the assert.
+    render(
+      <WatchedSites
+        sites={[makeSite({ pageId: "page-xyz" })]}
+        onUpdate={jest.fn()}
+        onRemove={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /expand/i }));
+    fireEvent.click(screen.getByRole("button", { name: /copy share link/i }));
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith("http://localhost/p/page-xyz"),
+    );
+    expect(await screen.findByText(/Copied/)).toBeInTheDocument();
+  });
+
   it("renders a tracked-value badge when trackedFact is present", () => {
     render(
       <WatchedSites
