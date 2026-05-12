@@ -8,11 +8,14 @@ interface Props {
   onAdd?: (url: string) => void;
   onDemo?: () => void;
   hasSites?: boolean;
+  // Pre-filled URL — used when arriving from a share page's "Watch this →" CTA
+  // so the friend sees the URL already populated and only has to click Watch.
+  initialUrl?: string;
 }
 
-export default function Hero({ onAdd, onDemo, hasSites }: Props) {
+export default function Hero({ onAdd, onDemo, hasSites, initialUrl }: Props) {
   const [focused, setFocused] = useState(false);
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(initialUrl ?? "");
   const [termIdx, setTermIdx] = useState(0);
   const [termVisible, setTermVisible] = useState(true);
 

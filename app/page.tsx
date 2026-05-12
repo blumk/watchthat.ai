@@ -49,6 +49,9 @@ export default function Home() {
   const [sites, setSites] = useState<WatchedSite[]>([]);
   const [view, setView] = useState<"home" | "watchlist">("home");
   const [setupUrl, setSetupUrl] = useState<string | null>(null);
+  // Pre-fill URL forwarded from a share page's "Watch this →" CTA. Read once
+  // on mount — we don't keep it in the URL bar after seeding the Hero input.
+  const [prefillUrl, setPrefillUrl] = useState<string | null>(null);
 
   function commitSites(
     updater: WatchedSite[] | ((prev: WatchedSite[]) => WatchedSite[]),
@@ -75,6 +78,20 @@ export default function Home() {
       commitSites(loaded);
       if (loaded.length > 0) setView("watchlist");
     });
+  }, []);
+
+  useEffect(() => {
+    // Handle ?watch=<url> from share-page CTAs. Pre-fills the Hero input and
+    // forces the home view (even if the user has watches) so the URL is
+    // visible to act on. Stripping the param keeps the URL clean on reload.
+    const params = new URLSearchParams(window.location.search);
+    const watch = params.get("watch");
+    if (!watch) return;
+    setPrefillUrl(watch);
+    setView("home");
+    const cleaned = new URL(window.location.href);
+    cleaned.searchParams.delete("watch");
+    window.history.replaceState(null, "", cleaned.pathname + cleaned.search + cleaned.hash);
   }, []);
 
   async function handleSetup(url: string) {
@@ -217,7 +234,12 @@ export default function Home() {
         </>
       ) : (
         <>
-          <Hero onAdd={handleSetup} onDemo={handleDemo} hasSites={hasSites} />
+          <Hero
+            onAdd={handleSetup}
+            onDemo={handleDemo}
+            hasSites={hasSites}
+            initialUrl={prefillUrl ?? undefined}
+          />
           <HowItWorks />
           <Pricing />
           <Footer />

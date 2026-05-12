@@ -65,6 +65,10 @@ function buildHistory(snapshots: SnapshotRow[]): DisplayEntry[] {
   return entries;
 }
 
+// Share pages only expose the last 7 days of history — full back-catalogue
+// is reserved for users who add the page to their own watchlist.
+const SHARE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
 export default function SharedPageView({
   page,
   snapshots,
@@ -73,9 +77,13 @@ export default function SharedPageView({
   snapshots: SnapshotRow[];
 }) {
   // Newest first — matches how the watcher's expanded log renders.
-  const entries = buildHistory(snapshots).reverse();
+  const allEntries = buildHistory(snapshots).reverse();
+  const cutoff = Date.now() - SHARE_WINDOW_MS;
+  const entries = allEntries.filter((e) => e.timestamp >= cutoff);
+  const hiddenCount = allEntries.length - entries.length;
   const [selectedIdx, setSelectedIdx] = useState(0);
   const selected = entries[selectedIdx] ?? null;
+  const watchHref = `/?watch=${encodeURIComponent(page.url)}`;
 
   return (
     <main className="min-h-screen bg-[var(--bg)] text-[var(--t1)]">
@@ -116,9 +124,17 @@ export default function SharedPageView({
 
       {entries.length === 0 ? (
         <section className="max-w-[960px] mx-auto px-6 py-12">
-          <p className="text-sm font-mono text-[var(--t3)]">
-            No snapshots have been captured for this page yet.
+          <p className="text-sm font-mono text-[var(--t3)] mb-6">
+            {allEntries.length === 0
+              ? "No snapshots have been captured for this page yet."
+              : "No changes in the last 7 days. Watch this page yourself to see its full history and get notified the moment it moves."}
           </p>
+          <a
+            href={watchHref}
+            className="inline-flex items-center px-5 py-2.5 rounded-xl bg-[var(--blue)] text-white text-sm font-semibold no-underline hover:brightness-110 transition-all"
+          >
+            Watch this →
+          </a>
         </section>
       ) : (
         <section className="max-w-[960px] mx-auto px-6 pb-12 grid grid-cols-1 md:grid-cols-[1fr_320px] gap-6 items-start">
@@ -140,8 +156,13 @@ export default function SharedPageView({
 
           {/* Change log */}
           <aside aria-label="Change log" className="bg-[var(--bg2)] border border-[var(--bdr)] rounded-2xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-[var(--bdr)] text-[11px] font-mono text-[var(--t3)] uppercase tracking-widest">
-              Change history · {entries.length} {entries.length === 1 ? "entry" : "entries"}
+            <div className="px-4 py-3 border-b border-[var(--bdr)]">
+              <div className="text-[11px] font-mono text-[var(--t3)] uppercase tracking-widest">
+                Change history · last 7 days
+              </div>
+              <div className="text-[10px] font-mono text-[var(--t3)] mt-0.5">
+                {entries.length} {entries.length === 1 ? "entry" : "entries"} shown
+              </div>
             </div>
             <ul className="max-h-[480px] overflow-y-auto">
               {entries.map((e, i) => {
@@ -181,14 +202,40 @@ export default function SharedPageView({
                 );
               })}
             </ul>
+            {hiddenCount > 0 && (
+              <div className="px-4 py-3 border-t border-[var(--bdr)] bg-[var(--bg3)]">
+                <div className="text-[11px] font-mono text-[var(--t2)] leading-relaxed">
+                  {hiddenCount} older {hiddenCount === 1 ? "entry" : "entries"} hidden.
+                </div>
+                <a
+                  href={watchHref}
+                  className="inline-block mt-2 text-xs font-mono text-[var(--blue)] hover:brightness-110 no-underline"
+                >
+                  Watch to see full history →
+                </a>
+              </div>
+            )}
           </aside>
         </section>
       )}
 
-      <footer className="max-w-[960px] mx-auto px-6 pb-12 pt-4 border-t border-[var(--bdr)]">
-        <p className="text-[11px] font-mono text-[var(--t3)]">
-          Want to monitor your own pages? <a href="/" className="text-[var(--blue)] hover:brightness-110">Start a watch →</a>
-        </p>
+      <footer className="max-w-[960px] mx-auto px-6 pb-12 pt-6 border-t border-[var(--bdr)]">
+        <div className="rounded-2xl border border-[var(--bdr)] bg-[var(--bg2)] p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-mono text-[var(--t1)]">
+              Add this page to your own watchlist
+            </div>
+            <div className="text-[11px] font-mono text-[var(--t3)] mt-0.5">
+              You'll see the full history and get notified when anything changes.
+            </div>
+          </div>
+          <a
+            href={watchHref}
+            className="shrink-0 inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-[var(--blue)] text-white text-sm font-semibold no-underline hover:brightness-110 transition-all"
+          >
+            Watch this →
+          </a>
+        </div>
       </footer>
     </main>
   );

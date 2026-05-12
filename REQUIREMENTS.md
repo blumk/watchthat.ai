@@ -167,6 +167,8 @@ Public, read-only view of a page's screenshot + change history. No login require
 - `/p/<valid-but-unknown-uuid>` returns 404 after the page lookup misses [untested — manual]
 - Page emits `<meta name="robots" content="noindex,nofollow">` to keep share URLs out of search engines
 - Render is `force-dynamic` — no stale cache across snapshot updates
+- **7-day history window:** only entries with `timestamp >= now − 7 days` render. The rail header says "last 7 days"; older entries collapse into a "N older entries hidden — Watch to see full history →" panel inside the rail. The full history remains accessible only via the visitor's own watch.
+- **"Watch this →" CTA:** every share page renders a footer card linking to `/?watch=<encoded-url>`. The empty-state (no recent entries) also surfaces the same CTA. Clicking it lands the visitor on the home view with the URL pre-filled in the Hero input; the `?watch=` param is stripped from the URL bar on arrival.
 
 ---
 
