@@ -6,6 +6,7 @@ import type { WatchedSite, ChangeEntry } from "@/lib/db";
 import type { ScrapeResponse } from "@/lib/snapshot";
 import type { FactBag } from "@/lib/facts";
 import { matchTargetToFact } from "@/lib/watch-target-match";
+import { useVisibilityTick } from "@/lib/use-visibility-tick";
 import ScreenshotModal from "./ScreenshotModal";
 
 function makeEntry(
@@ -121,6 +122,8 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   // (change / initial / error) lands. Not persisted.
   const [noChangeAt, setNoChangeAt] = useState<Record<string, number>>({});
   const autoFetched = useRef<Set<string>>(new Set());
+  // Re-render relative timestamps when the tab regains focus.
+  useVisibilityTick();
 
   function clearNoChange(id: string) {
     setNoChangeAt((prev) => {

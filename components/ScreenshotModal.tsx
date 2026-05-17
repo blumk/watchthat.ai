@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import type { ChangeEntry } from "@/lib/db";
+import { useVisibilityTick } from "@/lib/use-visibility-tick";
 
 interface Props {
   entries: ChangeEntry[];
@@ -40,6 +41,8 @@ function timeAgo(ts: number): string {
 export default function ScreenshotModal({ entries, initialIndex, onClose }: Props) {
   const safeInitial = Math.min(Math.max(0, initialIndex), Math.max(0, entries.length - 1));
   const [index, setIndex] = useState(safeInitial);
+  // Refresh rail "X min ago" labels when the tab regains focus.
+  useVisibilityTick();
   // Hovering a rail row shows that entry in the main panel without pinning
   // it. Leaving the rail reverts to the pinned `index`. Keyboard/clicks pin.
   const [hoverIndex, _setHoverIndex] = useState<number | null>(null);

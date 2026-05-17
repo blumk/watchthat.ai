@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { snapshotPublicUrl, type SnapshotRow } from "@/lib/snapshot";
+import { useVisibilityTick } from "@/lib/use-visibility-tick";
 
 interface PageRow {
   id: string;
@@ -84,6 +85,8 @@ export default function SharedPageView({
   const [selectedIdx, setSelectedIdx] = useState(0);
   const selected = entries[selectedIdx] ?? null;
   const watchHref = `/?watch=${encodeURIComponent(page.url)}`;
+  // Refresh relative timestamps when the tab regains focus.
+  useVisibilityTick();
 
   return (
     <main className="min-h-screen bg-[var(--bg)] text-[var(--t1)]">
