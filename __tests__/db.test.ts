@@ -157,13 +157,14 @@ describe("getSites", () => {
       value: "4.4",
       displayName: "Rating",
     });
-    // History: initial entry shows just the "after" value (no prior seen);
-    // the later entry shows a before → after delta.
-    expect(site.history[0].trackedDelta).toEqual({
-      displayName: "Rating",
-      before: undefined,
-      after: "4.5",
-    });
+    // History: the initial-snapshot entry folds the first-seen tracked
+    // value directly into the description (suppressing the trackedDelta
+    // prefix so the value isn't doubled). Later entries get a normal
+    // before → after delta.
+    expect(site.history[0].description).toBe(
+      "Initial snapshot taken with rating 4.5.",
+    );
+    expect(site.history[0].trackedDelta).toBeUndefined();
     expect(site.history[1].trackedDelta).toEqual({
       displayName: "Rating",
       before: "4.5",

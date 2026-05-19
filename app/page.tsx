@@ -186,6 +186,16 @@ export default function Home() {
   ) {
     await updateSite(id, patch);
     commitSites((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+    // Pull a fresh snapshot of every watch so the just-saved watchTarget
+    // can drive the initial-entry enrichment ("Initial snapshot taken with
+    // rating 4.5.") and the trackedFact badge — both are computed in
+    // getSites from the persisted watch_target + facts bag.
+    try {
+      const loaded = await getSites();
+      commitSites(loaded);
+    } catch {
+      // Non-fatal — local optimistic state still reflects the patch.
+    }
   }
 
   function handleDone() {

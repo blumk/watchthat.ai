@@ -321,6 +321,15 @@ function annotateHistoryWithDelta(
         after: current,
       },
     };
+    // For the very first observed value of a tracked target, fold the
+    // value directly into the initial-snapshot description so users see
+    // "Initial snapshot taken with rating 4.5." instead of the trackedDelta
+    // prefix on a generic "Initial snapshot taken." line.
+    if (lastValue === undefined && entry.description === "Initial snapshot taken.") {
+      annotated.description = `Initial snapshot taken with ${match.displayName.toLowerCase()} ${current}.`;
+      // Suppress the prefix render — the value is already in the description.
+      delete annotated.trackedDelta;
+    }
     lastValue = current;
     return annotated;
   });
