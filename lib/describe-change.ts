@@ -1,7 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
-import * as Sentry from "@sentry/nextjs";
 import type { FactChange } from "@/lib/facts";
 import { parseJsonResponse } from "@/lib/parse-json-response";
+import { createAnthropicClient } from "@/lib/anthropic";
 
 export interface DescribeChangeInput {
   oldValue: string;
@@ -44,10 +43,7 @@ export async function describeChange({
   url,
   factsDiff,
 }: DescribeChangeInput): Promise<DescribeChangeResult> {
-  const client = Sentry.instrumentAnthropicAiClient(
-    new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }),
-    { recordInputs: true, recordOutputs: true },
-  );
+  const client = createAnthropicClient();
 
   const factsBlock = formatFactsDiff(factsDiff);
   const targetsBlock = formatWatchTargets(watchTargets);

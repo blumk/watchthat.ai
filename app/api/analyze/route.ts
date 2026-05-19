@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
-import * as Sentry from "@sentry/nextjs";
 import { parseJsonResponse } from "@/lib/parse-json-response";
+import { createAnthropicClient } from "@/lib/anthropic";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
@@ -15,10 +14,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const client = Sentry.instrumentAnthropicAiClient(
-      new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }),
-      { recordInputs: true, recordOutputs: true },
-    );
+    const client = createAnthropicClient();
     const message = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 512,

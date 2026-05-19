@@ -9,6 +9,7 @@ const config = {
     "\\.(css|scss)$": "<rootDir>/__mocks__/fileMock.ts",
   },
   testMatch: ["**/__tests__/**/*.test.(ts|tsx)"],
+  testPathIgnorePatterns: ["/node_modules/", "/e2e/", "/.next-build/"],
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
 };
 

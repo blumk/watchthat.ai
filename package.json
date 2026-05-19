@@ -11,7 +11,11 @@
     "test": "jest --watch",
     "test:ci": "NODE_ENV=test jest --ci",
     "lint": "tsc --noEmit",
-    "scan:secrets": "bash scripts/scan-secrets.sh"
+    "scan:secrets": "bash scripts/scan-secrets.sh",
+    "e2e": "PLAYWRIGHT_LOCAL=1 playwright test",
+    "e2e:smoke": "PLAYWRIGHT_LOCAL=1 playwright test --grep @smoke",
+    "e2e:full": "PLAYWRIGHT_LOCAL=1 playwright test --grep @full",
+    "e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.81.0",
@@ -30,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
+    "@playwright/test": "^1.60.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",

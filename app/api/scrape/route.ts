@@ -26,7 +26,6 @@
 // Response: `{ snapshot: SnapshotWithUrl, cached, newChange }`.
 
 import { NextResponse } from "next/server";
-import FirecrawlApp from "@mendable/firecrawl-js";
 import { randomUUID } from "node:crypto";
 import { createServiceClient } from "@/utils/supabase/service";
 import { normalizeUrl, extractLabel } from "@/lib/url";
@@ -35,8 +34,8 @@ import { describeChange } from "@/lib/describe-change";
 import { decorateSnapshot, type SnapshotRow } from "@/lib/snapshot";
 import { extractFacts, diffFacts, factsBlob, type FactBag, type FactChange } from "@/lib/facts";
 import { matchTargetToFact } from "@/lib/watch-target-match";
+import { runFirecrawl, FIRECRAWL_TIMEOUT_MS } from "@/lib/firecrawl";
 
-const SCRAPE_TIMEOUT_MS = 300_000;
 const DEDUP_WINDOW_MS = 300_000; // 5 minutes
 const SCREENSHOTS_BUCKET = "screenshots";
 
@@ -254,35 +253,6 @@ export async function POST(request: Request) {
   });
 }
 
-async function runFirecrawl(
-  url: string,
-): Promise<{ markdown: string; rawHtml: string; screenshot: string | null }> {
-  const firecrawl = new FirecrawlApp({
-    apiKey: process.env.FIRECRAWL_API_KEY ?? "",
-  });
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    const id = setTimeout(() => reject(new Error("timeout")), SCRAPE_TIMEOUT_MS);
-    id.unref();
-  });
-  const result = await Promise.race([
-    // `rawHtml` preserves <script type="application/ld+json"> blocks (cleaned
-    // `html` sometimes strips them); extractFacts needs them.
-    firecrawl.scrape(url, {
-      formats: ["markdown", "rawHtml"],
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      actions: [{ type: "screenshot" as const, fullPage: true }] as any,
-    }),
-    timeoutPromise,
-  ]);
-  const actions = result.actions as { screenshots?: string[] } | undefined;
-  const r = result as { markdown?: string; rawHtml?: string };
-  return {
-    markdown: r.markdown ?? "",
-    rawHtml: r.rawHtml ?? "",
-    screenshot: actions?.screenshots?.[0] ?? null,
-  };
-}
-
 function firecrawlErrorResponse(url: string, err: unknown) {
   const detail =
     err && typeof err === "object"
@@ -295,7 +265,7 @@ function firecrawlErrorResponse(url: string, err: unknown) {
   console.error("[scrape] error", url, { code, detail });
   const message =
     err instanceof Error && err.message === "timeout"
-      ? `scrape timed out after ${SCRAPE_TIMEOUT_MS / 1000}s`
+      ? `scrape timed out after ${FIRECRAWL_TIMEOUT_MS / 1000}s`
       : code === "BAD_REQUEST"
       ? `Firecrawl rejected this URL (${detail ?? "no details"})`
       : "failed to scrape url";

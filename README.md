@@ -10,6 +10,7 @@ WatchThat is a website change monitoring tool. Paste a URL, WatchThat takes a sn
 - **TypeScript** — strict mode
 - **Tailwind CSS** — utility-first styling + CSS variable theming
 - **Jest + React Testing Library** — TDD enforced via `prebuild` hook
+- **Playwright** — browser-driven e2e against Vercel previews and prod
 - **pnpm** — package manager
 - **Supabase** — Postgres + Auth + Storage (local via `supabase` CLI, prod on Supabase Cloud)
 - **Sentry** — error monitoring, tracing, session replay, and AI span capture for Anthropic calls
@@ -64,6 +65,9 @@ Migrations live in `supabase/migrations/`. Create a new one with `supabase migra
 | `pnpm test` | Run tests in watch mode |
 | `pnpm test:ci` | Run tests once (CI) |
 | `pnpm start` | Start production server |
+| `pnpm e2e:install` | Download Playwright's Chromium (one-time) |
+| `pnpm e2e:smoke` | Run smoke specs against local dev server |
+| `pnpm e2e:full` | Run full specs against local dev server |
 
 > `pnpm build` runs `jest --ci` first via `prebuild`. A failing test blocks the build.
 >
@@ -83,6 +87,28 @@ When adding a new component:
 2. Write failing tests for the expected behavior
 3. Implement the component until tests pass
 4. `pnpm build` will verify tests pass before shipping
+
+## End-to-end tests (Playwright)
+
+Browser-driven tests live in `e2e/`. Two suites:
+
+- **`smoke/`** — read-only-ish checks runnable against prod. CI runs them after every production deploy via `.github/workflows/e2e-prod-smoke.yml`.
+- **`full/`** — full mutating suite runnable against a Vercel preview. Firecrawl + Anthropic are stubbed via `E2E_MOCK=1` (see `lib/firecrawl.ts` and `lib/anthropic.ts`); deterministic page fixtures live behind `/api/test-fixture/[v]`.
+
+Local:
+
+```bash
+pnpm e2e:install     # one-time Chromium download
+pnpm e2e:smoke       # boots `next dev` with E2E_MOCK=1 and runs @smoke specs
+```
+
+Point at a deployed URL by setting `E2E_BASE_URL` and dropping the `PLAYWRIGHT_LOCAL=1` env (CI does this automatically):
+
+```bash
+E2E_BASE_URL=https://your-preview.vercel.app pnpm exec playwright test --grep @smoke
+```
+
+See `e2e/README.md` for the full layout and `plans/` for the phased migration plan.
 
 ## Project Structure
 
