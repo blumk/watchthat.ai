@@ -291,6 +291,56 @@ describe("POST /api/scrape", () => {
     });
   });
 
+  it("forwards each watcher's distinct watch_target to describeChange", async () => {
+    // First scrape upserts the page; no watches exist yet (those are
+    // created by /api/watches in real traffic).
+    await POST(makeRequest({ url: "https://example.com" }));
+    const pageId = state.pages[0].id;
+    // Two users watching with one shared target + one distinct one, plus a
+    // null-target watch that should be ignored.
+    state.watches.push(
+      {
+        id: "w-1",
+        user_id: "u-1",
+        page_id: pageId,
+        watch_target: "price of the Pro plan",
+        created_at: Date.now(),
+      },
+      {
+        id: "w-2",
+        user_id: "u-2",
+        page_id: pageId,
+        watch_target: "price of the Pro plan", // dup — should de-dup
+        created_at: Date.now(),
+      },
+      {
+        id: "w-3",
+        user_id: "u-3",
+        page_id: pageId,
+        watch_target: "monthly active users",
+        created_at: Date.now(),
+      },
+      {
+        id: "w-4",
+        user_id: "u-4",
+        page_id: pageId,
+        watch_target: null, // no target — should be filtered out
+        created_at: Date.now(),
+      },
+    );
+
+    state.pages[0].last_fetched_at = new Date(Date.now() - 600_000).toISOString();
+    mockFirecrawl("# Hello world — Pro plan now $480 (was $440)");
+    await POST(makeRequest({ url: "https://example.com" }));
+
+    expect(mockDescribeChange).toHaveBeenCalledTimes(1);
+    const arg = mockDescribeChange.mock.calls[0][0];
+    expect(arg.watchTargets).toEqual(
+      expect.arrayContaining(["price of the Pro plan", "monthly active users"]),
+    );
+    expect(arg.watchTargets).toHaveLength(2); // de-duped, null dropped
+  });
+
   it("falls back to a generic description if describeChange throws", async () => {
     mockDescribeChange.mockRejectedValueOnce(new Error("claude down"));
     await POST(makeRequest({ url: "https://example.com" }));

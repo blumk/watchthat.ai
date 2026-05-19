@@ -170,11 +170,18 @@ export async function POST(request: Request) {
       const factsDiff = prevHadFacts
         ? diffFacts(prev.facts as FactBag, facts)
         : [];
+      // Pull distinct user-specified watch targets for this page. When users
+      // asked us to track a specific property ("price of the Pro plan",
+      // "app rating"), Claude needs to know — otherwise a $40 price move
+      // buried in a noisy markdown diff gets summarised as "nothing
+      // significant changed."
+      const watchTargets = await loadWatchTargets(svc, page.id);
       try {
         const desc = await describeChange({
           oldValue: prevMarkdown,
           newValue: markdown,
           watchTarget: "page content",
+          watchTargets,
           url,
           factsDiff,
         });
@@ -284,6 +291,24 @@ function firecrawlErrorResponse(url: string, err: unknown) {
 async function loadSnapshot(svc: Svc, id: string): Promise<SnapshotRow | null> {
   const { data } = await svc.from("snapshots").select("*").eq("id", id).maybeSingle();
   return (data as SnapshotRow | null) ?? null;
+}
+
+// Distinct non-null watch targets across every user watching this page —
+// passed to describeChange so the prompt can focus on what users actually
+// asked us to monitor instead of describing the diff generically.
+async function loadWatchTargets(svc: Svc, pageId: string): Promise<string[]> {
+  const { data } = await svc
+    .from("watches")
+    .select("watch_target")
+    .eq("page_id", pageId);
+  const rows = (data ?? []) as Array<{ watch_target: string | null }>;
+  return Array.from(
+    new Set(
+      rows
+        .map((r) => r.watch_target?.trim())
+        .filter((t): t is string => !!t),
+    ),
+  );
 }
 
 // Fallback markdown resolver for hash-equal re-inserts. We store
