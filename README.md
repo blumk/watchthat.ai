@@ -151,6 +151,14 @@ supabase db push                                  # applies all migrations to cl
 
 Re-run `supabase db push` after creating a new migration. Cloud URL + keys live in **Supabase Dashboard → Project Settings → API**.
 
+> **If `supabase db push` reports success but the migration's changes don't actually appear in the cloud DB**, the migration tracker may have a stale entry for that file. Force re-application of every migration with:
+>
+> ```bash
+> supabase db push --include-all
+> ```
+>
+> This bypasses the tracker and re-runs every migration in lexicographic order. Migrations are written to be idempotent (`create or replace`, `alter table … add column if not exists`), so re-running them is safe.
+
 ### Auto-refresh (Supabase pg_cron)
 
 Watched pages are re-scraped in the background on each user's chosen interval (default 24h, floor 1h). The scheduler is a Supabase pg_cron job that fires HTTP POSTs at `/api/cron/scrape`; that route delegates to `/api/scrape` so the existing hash / fact-extract / describe-change pipeline handles every refresh identically to a manual ↻ click.

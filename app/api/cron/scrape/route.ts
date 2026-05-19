@@ -14,36 +14,23 @@ export const maxDuration = 300;
 
 export async function POST(req: Request) {
   const expected = process.env.CRON_SECRET;
-  // Accept the secret via either Authorization: Bearer ... OR
-  // X-Cron-Secret: ... — supabase-ssr's middleware was eating the
-  // Authorization header looking for a Supabase JWT, so we ship a
-  // belt-and-braces custom header that doesn't look like a JWT and
-  // nothing in the middleware chain has any reason to touch.
-  const auth = req.headers.get("authorization");
+  // Accept the secret via either X-Cron-Secret OR Authorization: Bearer.
+  // X-Cron-Secret is the primary path — supabase-ssr's middleware was
+  // consuming the Authorization header looking for a Supabase JWT before
+  // our route ever ran. A custom header doesn't look like a JWT so nothing
+  // in the middleware chain has any reason to touch it.
   const customHeader = req.headers.get("x-cron-secret");
+  const auth = req.headers.get("authorization");
   const bearerToken = auth?.startsWith("Bearer ")
     ? auth.slice("Bearer ".length)
     : null;
   const authorized =
     !!expected &&
-    ((bearerToken !== null && bearerToken === expected) ||
-      (customHeader !== null && customHeader === expected));
+    ((customHeader !== null && customHeader === expected) ||
+      (bearerToken !== null && bearerToken === expected));
 
   if (!authorized) {
-    const received = bearerToken ?? customHeader;
-    const diag = {
-      error: "unauthorized",
-      hasExpectedEnvVar: Boolean(expected),
-      expectedLen: expected?.length ?? 0,
-      hasAuthHeader: Boolean(auth),
-      authStartsWithBearer: auth?.startsWith("Bearer ") ?? false,
-      hasCustomHeader: Boolean(customHeader),
-      receivedTokenLen: received?.length ?? 0,
-      expectedTail: expected?.slice(-4) ?? null,
-      receivedTail: received?.slice(-4) ?? null,
-    };
-    console.error("[cron-scrape] 401", diag);
-    return NextResponse.json(diag, { status: 401 });
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   let body: { pageId?: string };
