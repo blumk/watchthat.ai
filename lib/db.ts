@@ -124,6 +124,7 @@ export function _setSessionForTests(
 type WatchRow = {
   id: string;
   watch_target: string | null;
+  refresh_interval_seconds: number;
   pages: {
     id: string;
     url: string;
@@ -141,6 +142,7 @@ function rowToSite(row: WatchRow): WatchedSite | null {
     url: row.pages.url,
     label: row.pages.label,
     watchTarget: row.watch_target,
+    refreshInterval: row.refresh_interval_seconds,
   });
 }
 
@@ -189,7 +191,7 @@ export async function getSites(): Promise<WatchedSite[]> {
   const { data, error } = await client
     .from("watches")
     .select(
-      "id, watch_target, pages(id, url, label, latest_snapshot_id, last_fetched_at)",
+      "id, watch_target, refresh_interval_seconds, pages(id, url, label, latest_snapshot_id, last_fetched_at)",
     )
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });
@@ -338,10 +340,18 @@ export async function updateSite(
   id: string,
   patch: Partial<WatchedSite>,
 ): Promise<void> {
-  // Only watch-scoped columns persist in Phase 2. Everything else lives in
-  // React state until snapshots land.
+  // Only watch-scoped columns persist. Everything else lives in React state.
   const dbPatch: Database["public"]["Tables"]["watches"]["Update"] = {};
   if ("watchTarget" in patch) dbPatch.watch_target = patch.watchTarget ?? null;
+  if (
+    "refreshInterval" in patch &&
+    typeof patch.refreshInterval === "number" &&
+    patch.refreshInterval >= 3600
+  ) {
+    // The DB has a 1h floor; round trip would otherwise reject. WatchSetup
+    // never offers anything below 3600 so this is just a defence-in-depth.
+    dbPatch.refresh_interval_seconds = patch.refreshInterval;
+  }
   if (Object.keys(dbPatch).length === 0) return;
 
   const { client, user } = await ensureSession();

@@ -22,6 +22,9 @@ export type Database = {
           last_fetched_at: string | null;
           latest_snapshot_id: string | null;
           created_at: string;
+          // Maintained by triggers — when the cron should next scrape this
+          // page. NULL when the page has no active watchers.
+          next_due_at: string | null;
         };
         Insert: {
           id?: string;
@@ -30,6 +33,7 @@ export type Database = {
           last_fetched_at?: string | null;
           latest_snapshot_id?: string | null;
           created_at?: string;
+          next_due_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["pages"]["Insert"]>;
         Relationships: [];
@@ -75,6 +79,10 @@ export type Database = {
           page_id: string;
           created_at: string;
           watch_target: string | null;
+          // How often this user wants the page polled. Defaults to 86400s
+          // (24h); floor is 3600s. Page-level cadence is min() of all
+          // watchers' intervals, maintained by triggers.
+          refresh_interval_seconds: number;
         };
         Insert: {
           id?: string;
@@ -82,6 +90,7 @@ export type Database = {
           page_id: string;
           created_at?: string;
           watch_target?: string | null;
+          refresh_interval_seconds?: number;
         };
         Update: Partial<Database["public"]["Tables"]["watches"]["Insert"]>;
         Relationships: [];

@@ -120,6 +120,19 @@ change log is consistent across clients watching the same page.
 
 ---
 
+## Auto-refresh (Supabase pg_cron → `/api/cron/scrape`)
+
+Every watch carries a `refresh_interval_seconds` (default 86400 = 24h, floor 1h). Each `pages` row maintains a `next_due_at` recomputed by triggers: snapshot-insert sets it to `fetched_at + min(refresh_interval_seconds)` across watchers; watch insert/update/delete sets it relative to `last_fetched_at` (or `now()` if the page has never been scraped). Pages with no watchers get `next_due_at = NULL` and the cron ignores them.
+
+- A pg_cron job (`refresh-due-pages`, every 5 minutes) selects up to 25 pages with `next_due_at <= now()` that still have watchers, claims each by pushing `next_due_at` forward 10 minutes (built-in retry window if the call doesn't land), and fires `pg_net.http_post` to `/api/cron/scrape` with `Bearer <app.cron_secret>` [migration: `20260519140000_auto_refresh.sql`]
+- `/api/cron/scrape` rejects requests whose `Authorization` doesn't match `CRON_SECRET` (401) [`cron-scrape.test.ts`]
+- Missing or invalid `pageId` returns 400 [`cron-scrape.test.ts`]
+- A `pageId` that doesn't resolve to a `pages` row returns 404 without calling Firecrawl [`cron-scrape.test.ts`]
+- On success, delegates to `/api/scrape` with the page's URL (no `force`) so the snapshot/hash/fact/describe pipeline runs identically to a manual ↻ click. The snapshot-insert trigger then writes a fresh `next_due_at` and the page won't be re-picked until that elapses. [`cron-scrape.test.ts`]
+- Post-migration setup (one-time, manual): `alter database postgres set app.cron_secret = ...` + `alter database postgres set app.base_url = 'https://watchthat.ai'`, then set `CRON_SECRET` in Vercel envs to the same value. Until both database settings are populated, the cron logs a warning and no-ops.
+
+---
+
 ## API — `/api/scrape`
 
 - `POST` with `{ url, force? }` returns `{ snapshot, cached, newChange }` where `snapshot` is a row from `snapshots` decorated with a public `screenshot_url` [`scrape.test.ts`]

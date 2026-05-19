@@ -11,6 +11,7 @@ export interface FakePage {
   label: string;
   last_fetched_at: string | null;
   latest_snapshot_id: string | null;
+  next_due_at: string | null;
 }
 
 export interface FakeWatch {
@@ -18,6 +19,7 @@ export interface FakeWatch {
   user_id: string;
   page_id: string;
   watch_target: string | null;
+  refresh_interval_seconds: number;
   created_at: number;
 }
 
@@ -188,6 +190,7 @@ class Query {
               label: row.label as string,
               last_fetched_at: null,
               latest_snapshot_id: null,
+              next_due_at: null,
             };
             this.state.pages.push(created);
             return { data: [created], error: null };
@@ -202,6 +205,8 @@ class Query {
               user_id: row.user_id as string,
               page_id: row.page_id as string,
               watch_target: (row.watch_target as string | null) ?? null,
+              refresh_interval_seconds:
+                (row.refresh_interval_seconds as number | undefined) ?? 86400,
               created_at: Date.now(),
             };
             this.state.watches.push(created);
@@ -244,6 +249,8 @@ class Query {
               user_id: row.user_id as string,
               page_id: row.page_id as string,
               watch_target: (row.watch_target as string | null) ?? null,
+              refresh_interval_seconds:
+                (row.refresh_interval_seconds as number | undefined) ?? 86400,
               created_at: Date.now(),
             };
             this.state.watches.push(created);
