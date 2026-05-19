@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { updateSite, removeSite } from "@/lib/db";
+import { updateSite, removeSite, hideHistoryEntry } from "@/lib/db";
 import type { WatchedSite, ChangeEntry } from "@/lib/db";
 import type { ScrapeResponse } from "@/lib/snapshot";
 import type { FactBag } from "@/lib/facts";
@@ -149,6 +149,16 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   const [downloading, setDownloading] = useState<string | null>(null);
   // Site id whose share URL was just copied — shows brief "Copied!" feedback.
   const [shared, setShared] = useState<string | null>(null);
+  // Active swipe for a single history entry. Tracked globally because only
+  // one finger is realistically swiping at a time, and a single piece of
+  // state keeps the render math simple.
+  const [swipe, setSwipe] = useState<{
+    entryId: string;
+    dx: number;
+    dismissing: boolean;
+  } | null>(null);
+  const swipeStartX = useRef<number | null>(null);
+  const SWIPE_DISMISS_PX = 80;
   // Ephemeral "No change detected" indicator per site — set after a refresh
   // that didn't move the hash, cleared the next time a real history entry
   // (change / initial / error) lands. Not persisted.
@@ -315,6 +325,51 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   function handleRemove(id: string) {
     void removeSite(id);
     onRemove(id);
+  }
+
+  // Dismiss a single history entry. Ephemeral entries (no-change indicator,
+  // synthetic error rows) clear locally only; real snapshot entries (UUID
+  // ids) also persist via hideHistoryEntry so the dismissal survives reloads.
+  const UUID_RE_LOCAL =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  function dismissEntry(site: WatchedSite, entry: ChangeEntry) {
+    if (entry.id.startsWith("_nochange_")) {
+      clearNoChange(site.id);
+      return;
+    }
+    if (UUID_RE_LOCAL.test(entry.id)) {
+      void hideHistoryEntry(site.id, entry.id);
+    }
+    const nextHistory = (site.history ?? []).filter((e) => e.id !== entry.id);
+    onUpdate(site.id, { history: nextHistory });
+  }
+
+  function onEntryTouchStart(e: React.TouchEvent, entryId: string) {
+    swipeStartX.current = e.touches[0].clientX;
+    setSwipe({ entryId, dx: 0, dismissing: false });
+  }
+  function onEntryTouchMove(e: React.TouchEvent, entryId: string) {
+    if (swipeStartX.current === null) return;
+    const dx = e.touches[0].clientX - swipeStartX.current;
+    setSwipe({ entryId, dx, dismissing: false });
+  }
+  function onEntryTouchEnd(site: WatchedSite, entry: ChangeEntry) {
+    if (!swipe || swipe.entryId !== entry.id) {
+      swipeStartX.current = null;
+      return;
+    }
+    if (Math.abs(swipe.dx) >= SWIPE_DISMISS_PX) {
+      // Fling out then call dismiss after the CSS transition.
+      setSwipe({ entryId: entry.id, dx: swipe.dx > 0 ? 500 : -500, dismissing: true });
+      setTimeout(() => {
+        dismissEntry(site, entry);
+        setSwipe(null);
+      }, 200);
+    } else {
+      // Snap back.
+      setSwipe(null);
+    }
+    swipeStartX.current = null;
   }
 
   async function handleShare(site: WatchedSite) {
@@ -637,15 +692,40 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                         : entry.classification === "error" ? "var(--red)"
                         : "var(--t3)";
                       const isQuiet = entry.classification === "quiet";
+                      const isSwiping = swipe?.entryId === entry.id;
+                      const swipeDx = isSwiping ? swipe!.dx : 0;
+                      const swipeDismissing = isSwiping ? swipe!.dismissing : false;
                       return (
                         <div
                           key={entry.id}
                           onMouseEnter={() => setHoveredEntry((p) => ({ ...p, [site.id]: idx }))}
                           onClick={e => { e.stopPropagation(); setSelectedEntry((p) => ({ ...p, [site.id]: idx })); }}
-                          className={`px-3 py-2 cursor-pointer border-b border-[var(--bdr)] last:border-b-0 transition-colors ${
+                          onTouchStart={(e) => onEntryTouchStart(e, entry.id)}
+                          onTouchMove={(e) => onEntryTouchMove(e, entry.id)}
+                          onTouchEnd={() => onEntryTouchEnd(site, entry)}
+                          style={{
+                            transform: swipeDx ? `translateX(${swipeDx}px)` : undefined,
+                            opacity:
+                              swipeDx === 0
+                                ? undefined
+                                : Math.max(0, 1 - Math.abs(swipeDx) / 200),
+                            transition:
+                              swipeDx === 0 || swipeDismissing
+                                ? "transform 200ms ease, opacity 200ms ease"
+                                : "none",
+                            touchAction: "pan-y",
+                          }}
+                          className={`group/entry relative px-3 py-2 cursor-pointer border-b border-[var(--bdr)] last:border-b-0 transition-colors ${
                             isSelected ? "bg-[var(--bg3)]" : "hover:bg-[var(--bg)]"
                           } ${isQuiet ? "opacity-40" : ""}`}
                         >
+                          <button
+                            aria-label="Dismiss entry"
+                            onClick={(e) => { e.stopPropagation(); dismissEntry(site, entry); }}
+                            className="absolute top-1 right-1 opacity-0 group-hover/entry:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded text-[var(--t3)] hover:text-[var(--t1)] hover:bg-[var(--bg)] text-base leading-none cursor-pointer bg-transparent border-none"
+                          >
+                            ×
+                          </button>
                           <div className="flex items-start gap-2 min-w-0">
                             {entry.emoji ? (
                               <span className="shrink-0 text-sm leading-none mt-px">{entry.emoji}</span>

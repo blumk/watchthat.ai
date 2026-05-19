@@ -87,6 +87,10 @@ export type Database = {
           // describeChange on every scrape so users can teach the model
           // what to look for / ignore on noisy pages.
           target_notes: string | null;
+          // Per-user list of snapshot ids the watcher has dismissed from
+          // their own change log (swipe / × button). Filtered out in
+          // getSites; shared snapshots remain visible to others.
+          hidden_snapshot_ids: string[];
         };
         Insert: {
           id?: string;
@@ -96,6 +100,7 @@ export type Database = {
           watch_target?: string | null;
           refresh_interval_seconds?: number;
           target_notes?: string | null;
+          hidden_snapshot_ids?: string[];
         };
         Update: Partial<Database["public"]["Tables"]["watches"]["Insert"]>;
         Relationships: [];

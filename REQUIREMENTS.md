@@ -45,6 +45,11 @@ this doc is the human-readable summary.
 - When the watch's `watchTarget` resolved against the fact bag, shows a small tracked-value badge under the label (e.g. `Rating 4.5`). Hidden when `trackedFact` is null [`WatchedSites.test.tsx`]
 - History entries whose snapshot moved the tracked value are prefixed with a mono `Display X → Y · ` marker in front of the description; the initial entry's prefix shows just the first-seen value [`WatchedSites.test.tsx`]
 
+**Dismiss a history entry**
+- Each expanded history row gets a desktop-only × button (top-right, hover-revealed) and a touch swipe gesture: dragging horizontally past 80 px in either direction flings the row out and dismisses it [`WatchedSites.test.tsx`]
+- A swipe shorter than 80 px snaps back without dismissing [`WatchedSites.test.tsx`]
+- Real snapshot-backed entries persist the dismissal on the watcher's `watches.hidden_snapshot_ids` array; `getSites` filters them out at read time so the dismissal sticks across reloads. Ephemeral entries (e.g. the "No change detected." row) clear locally only — they have synthetic ids and aren't worth persisting.
+
 **Refinement notes**
 - Edit-mode footer has a "Notes for the AI" textarea pre-filled with the watch's existing `targetNotes`
 - Blurring the textarea persists the trimmed value (or NULL if empty) via `updateSite` and optimistically updates local state through `onUpdate` [`WatchedSites.test.tsx`]

@@ -138,6 +138,7 @@ type WatchRow = {
   watch_target: string | null;
   target_notes: string | null;
   refresh_interval_seconds: number;
+  hidden_snapshot_ids: string[] | null;
   pages: {
     id: string;
     url: string;
@@ -209,7 +210,7 @@ export async function getSites(): Promise<WatchedSite[]> {
   const { data, error } = await client
     .from("watches")
     .select(
-      "id, watch_target, target_notes, refresh_interval_seconds, pages(id, url, label, latest_snapshot_id, last_fetched_at, next_due_at)",
+      "id, watch_target, target_notes, refresh_interval_seconds, hidden_snapshot_ids, pages(id, url, label, latest_snapshot_id, last_fetched_at, next_due_at)",
     )
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });
@@ -268,7 +269,14 @@ export async function getSites(): Promise<WatchedSite[]> {
     const pageId = row.pages?.id ?? null;
     const pageSnapId = row.pages?.latest_snapshot_id;
     const snap = pageSnapId ? byId.get(pageSnapId) : null;
-    const baseHistory = pageId ? historyByPage.get(pageId) ?? [] : [];
+    const pageHistory = pageId ? historyByPage.get(pageId) ?? [] : [];
+    // Filter out snapshots this watcher has explicitly dismissed. Page-
+    // level history is shared, so other watchers still see them.
+    const hiddenIds = new Set(row.hidden_snapshot_ids ?? []);
+    const baseHistory =
+      hiddenIds.size > 0
+        ? pageHistory.filter((e) => !hiddenIds.has(e.id))
+        : pageHistory;
     const resolvedMarkdown = snap
       ? snap.markdown ?? markdownByHash.get(`${snap.page_id}|${snap.content_hash}`) ?? null
       : null;
@@ -381,6 +389,32 @@ export async function updateSite(
     .from("watches")
     .update(dbPatch)
     .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) throw error;
+}
+
+// Mark a snapshot id as hidden from this user's change log. Idempotent —
+// we de-dup before writing. RLS scopes the update to the caller's own
+// watch row. Read-modify-write is intentionally not atomic; double-tap
+// races just produce the same final state.
+export async function hideHistoryEntry(
+  siteId: string,
+  snapshotId: string,
+): Promise<void> {
+  const { client, user } = await ensureSession();
+  const { data: existing } = await client
+    .from("watches")
+    .select("hidden_snapshot_ids")
+    .eq("id", siteId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const current = (existing?.hidden_snapshot_ids ?? []) as string[];
+  if (current.includes(snapshotId)) return;
+  const next = Array.from(new Set([...current, snapshotId]));
+  const { error } = await client
+    .from("watches")
+    .update({ hidden_snapshot_ids: next })
+    .eq("id", siteId)
     .eq("user_id", user.id);
   if (error) throw error;
 }

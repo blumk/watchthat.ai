@@ -21,6 +21,7 @@ export interface FakeWatch {
   watch_target: string | null;
   target_notes: string | null;
   refresh_interval_seconds: number;
+  hidden_snapshot_ids: string[];
   created_at: number;
 }
 
@@ -209,6 +210,8 @@ class Query {
               target_notes: (row.target_notes as string | null) ?? null,
               refresh_interval_seconds:
                 (row.refresh_interval_seconds as number | undefined) ?? 86400,
+              hidden_snapshot_ids:
+                (row.hidden_snapshot_ids as string[] | undefined) ?? [],
               created_at: Date.now(),
             };
             this.state.watches.push(created);
@@ -254,6 +257,8 @@ class Query {
               target_notes: (row.target_notes as string | null) ?? null,
               refresh_interval_seconds:
                 (row.refresh_interval_seconds as number | undefined) ?? 86400,
+              hidden_snapshot_ids:
+                (row.hidden_snapshot_ids as string[] | undefined) ?? [],
               created_at: Date.now(),
             };
             this.state.watches.push(created);

@@ -8,6 +8,7 @@ import type { WatchedSite } from "@/lib/db";
 jest.mock("@/lib/db", () => ({
   updateSite: jest.fn().mockResolvedValue(undefined),
   removeSite: jest.fn().mockResolvedValue(undefined),
+  hideHistoryEntry: jest.fn().mockResolvedValue(undefined),
 }));
 
 // Silence console.error for expected fetch errors
@@ -311,6 +312,111 @@ describe("WatchedSites", () => {
     expect(patch.history).toHaveLength(1);
     expect(patch.history[0].classification).toBe("major");
     expect(patch.history[0].description).toBe("Price dropped from $99 to $79.");
+  });
+
+  it("dismisses a history entry when the × button is clicked", () => {
+    const onUpdate = jest.fn();
+    const history = [
+      {
+        id: "a1b2c3d4-1111-2222-3333-444455556666",
+        timestamp: Date.now() - 60_000,
+        description: "Major change",
+        classification: "major" as const,
+      },
+      {
+        id: "a1b2c3d4-aaaa-bbbb-cccc-ddddeeeeffff",
+        timestamp: Date.now() - 30_000,
+        description: "Minor change",
+        classification: "minor" as const,
+      },
+    ];
+    render(
+      <WatchedSites
+        sites={[makeSite({ history })]}
+        onUpdate={onUpdate}
+        onRemove={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /expand/i }));
+    // Two × buttons — one per entry. Click the first one (newest, listed
+    // first because history is reversed in render).
+    const dismissButtons = screen.getAllByRole("button", { name: /dismiss entry/i });
+    expect(dismissButtons).toHaveLength(2);
+    fireEvent.click(dismissButtons[0]);
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    const [siteId, patch] = onUpdate.mock.calls[0];
+    expect(siteId).toBe("abc123");
+    // The newest entry (id ending in eeffff) was dismissed; the other survives.
+    expect(patch.history).toHaveLength(1);
+    expect(patch.history[0].id).toBe("a1b2c3d4-1111-2222-3333-444455556666");
+  });
+
+  it("dismisses an entry via touch swipe past the threshold", () => {
+    const onUpdate = jest.fn();
+    const entryId = "a1b2c3d4-1111-2222-3333-444455556666";
+    render(
+      <WatchedSites
+        sites={[
+          makeSite({
+            history: [
+              {
+                id: entryId,
+                timestamp: Date.now() - 60_000,
+                description: "Major change",
+                classification: "major" as const,
+              },
+            ],
+          }),
+        ]}
+        onUpdate={onUpdate}
+        onRemove={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /expand/i }));
+    // Grab the entry row by its description.
+    const row = screen.getByText("Major change").closest("div[onTouchStart], .group\\/entry") as HTMLElement
+      ?? screen.getByText("Major change").parentElement!.parentElement!.parentElement!;
+    // Swipe left past the 80px dismiss threshold.
+    fireEvent.touchStart(row, { touches: [{ clientX: 200, clientY: 0 }] });
+    fireEvent.touchMove(row, { touches: [{ clientX: 80, clientY: 0 }] });
+    fireEvent.touchEnd(row, { changedTouches: [{ clientX: 80, clientY: 0 }] });
+    // Dismiss runs after the 200ms fling-out timer.
+    return new Promise<void>((resolve) => {
+      setTimeout(() => {
+        expect(onUpdate).toHaveBeenCalledTimes(1);
+        expect(onUpdate.mock.calls[0][1].history).toEqual([]);
+        resolve();
+      }, 220);
+    });
+  });
+
+  it("swipe under the threshold snaps back without dismissing", () => {
+    const onUpdate = jest.fn();
+    render(
+      <WatchedSites
+        sites={[
+          makeSite({
+            history: [
+              {
+                id: "a1b2c3d4-1111-2222-3333-444455556666",
+                timestamp: Date.now() - 60_000,
+                description: "Major change",
+                classification: "major" as const,
+              },
+            ],
+          }),
+        ]}
+        onUpdate={onUpdate}
+        onRemove={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /expand/i }));
+    const row = screen.getByText("Major change").parentElement!.parentElement!.parentElement!;
+    // Swipe just 20px — under the 80px threshold.
+    fireEvent.touchStart(row, { touches: [{ clientX: 100, clientY: 0 }] });
+    fireEvent.touchMove(row, { touches: [{ clientX: 80, clientY: 0 }] });
+    fireEvent.touchEnd(row, { changedTouches: [{ clientX: 80, clientY: 0 }] });
+    expect(onUpdate).not.toHaveBeenCalled();
   });
 
   it("persists target notes on blur via onUpdate", () => {
