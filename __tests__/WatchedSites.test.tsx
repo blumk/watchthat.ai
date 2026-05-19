@@ -313,6 +313,72 @@ describe("WatchedSites", () => {
     expect(patch.history[0].description).toBe("Price dropped from $99 to $79.");
   });
 
+  it("shows the refresh cadence line on a collapsed card when refreshInterval is set", () => {
+    const futureMs = Date.now() + 5 * 3600 * 1000;
+    render(
+      <WatchedSites
+        sites={[makeSite({ refreshInterval: 86400, nextDueAt: futureMs })]}
+        onUpdate={jest.fn()}
+        onRemove={jest.fn()}
+      />,
+    );
+    const badge = screen.getByLabelText("Refresh cadence");
+    expect(badge).toHaveTextContent(/Every 24h/);
+    expect(badge).toHaveTextContent(/next in 5h/);
+  });
+
+  it("highlights the currently-selected interval chip in edit mode", () => {
+    render(
+      <WatchedSites
+        sites={[makeSite({ refreshInterval: 21600, nextDueAt: Date.now() + 1000 })]}
+        onUpdate={jest.fn()}
+        onRemove={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /expand/i }));
+    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+    const six = screen.getByRole("radio", { name: "6h" });
+    expect(six).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "1h" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("radio", { name: "24h" })).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("clicking an interval chip patches refreshInterval + nextDueAt via onUpdate", () => {
+    const onUpdate = jest.fn();
+    const lastChecked = Date.now() - 60_000;
+    render(
+      <WatchedSites
+        sites={[makeSite({ refreshInterval: 86400, lastChecked, nextDueAt: lastChecked + 86400_000 })]}
+        onUpdate={onUpdate}
+        onRemove={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /expand/i }));
+    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+    fireEvent.click(screen.getByRole("radio", { name: "1h" }));
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    const [id, patch] = onUpdate.mock.calls[0];
+    expect(id).toBe("abc123");
+    expect(patch.refreshInterval).toBe(3600);
+    // nextDueAt = lastChecked + 1h
+    expect(patch.nextDueAt).toBe(lastChecked + 3600 * 1000);
+  });
+
+  it("no-ops when clicking the already-selected interval chip", () => {
+    const onUpdate = jest.fn();
+    render(
+      <WatchedSites
+        sites={[makeSite({ refreshInterval: 3600 })]}
+        onUpdate={onUpdate}
+        onRemove={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /expand/i }));
+    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+    fireEvent.click(screen.getByRole("radio", { name: "1h" }));
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
   it("copies a /p/<pageId> share URL to the clipboard when the Share button is clicked", async () => {
     const writeText = jest.fn().mockResolvedValue(undefined);
     Object.assign(navigator, {

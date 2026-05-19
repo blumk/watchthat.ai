@@ -99,6 +99,34 @@ function timeAgo(ts: number | null): string {
   return `${Math.floor(hr / 24)}d ago`;
 }
 
+// "Checks every 24h" — short label for a refresh cadence.
+function formatInterval(seconds: number | null | undefined): string {
+  if (!seconds || seconds <= 0) return "—";
+  const hr = Math.round(seconds / 3600);
+  if (hr < 24) return `${hr}h`;
+  const days = Math.round(hr / 24);
+  return days === 1 ? "24h" : `${days}d`;
+}
+
+// "in 4h" / "in 12min" / "due now" for a future timestamp.
+function timeUntil(ts: number | null | undefined): string {
+  if (!ts) return "—";
+  const sec = Math.floor((ts - Date.now()) / 1000);
+  if (sec <= 0) return "due now";
+  if (sec < 60) return `in ${sec}s`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `in ${min}min`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `in ${hr}h`;
+  return `in ${Math.floor(hr / 24)}d`;
+}
+
+const INTERVAL_OPTIONS: Array<{ label: string; seconds: number }> = [
+  { label: "1h", seconds: 3600 },
+  { label: "6h", seconds: 21600 },
+  { label: "24h", seconds: 86400 },
+];
+
 interface Props {
   sites: WatchedSite[];
   onUpdate: (id: string, patch: Partial<WatchedSite>) => void;
@@ -388,6 +416,20 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
     setEditUrl(site.url);
   }
 
+  function handleIntervalChange(site: WatchedSite, seconds: number) {
+    if (site.refreshInterval === seconds) return;
+    // Mirror what the DB watch-trigger will compute: next_due_at relative
+    // to last_fetched_at (or now() if never scraped). Server values
+    // overwrite this on the next getSites() if they diverge.
+    const base = site.lastChecked ?? Date.now();
+    const patch: Partial<WatchedSite> = {
+      refreshInterval: seconds,
+      nextDueAt: base + seconds * 1000,
+    };
+    void updateSite(site.id, patch);
+    onUpdate(site.id, patch);
+  }
+
   function handleUrlChange(site: WatchedSite) {
     const raw = editUrl.trim();
     if (!raw) return;
@@ -526,6 +568,15 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                         <span className="text-[var(--t1)]">{site.trackedFact.value}</span>
                       </span>
                     )}
+                    {!isExpanded && site.refreshInterval && (
+                      <span
+                        aria-label="Refresh cadence"
+                        className="text-[10px] font-mono text-[var(--t3)] block mt-1 leading-none"
+                      >
+                        Every {formatInterval(site.refreshInterval)}
+                        {site.nextDueAt ? ` · next ${timeUntil(site.nextDueAt)}` : null}
+                      </span>
+                    )}
                   </div>
 
                   {/* Time + actions */}
@@ -642,6 +693,36 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                   >
                     {editingCard === site.id ? (
                       <>
+                        <div
+                          role="radiogroup"
+                          aria-label="Refresh interval"
+                          className="flex items-center gap-1.5 mb-2"
+                        >
+                          <span className="text-[10px] font-mono text-[var(--t3)] mr-1">Check every</span>
+                          {INTERVAL_OPTIONS.map((opt) => {
+                            const isSelected = site.refreshInterval === opt.seconds;
+                            return (
+                              <button
+                                key={opt.seconds}
+                                role="radio"
+                                aria-checked={isSelected}
+                                onClick={() => handleIntervalChange(site, opt.seconds)}
+                                className={`px-2 py-0.5 rounded-md border text-[10px] font-mono leading-none cursor-pointer transition-colors ${
+                                  isSelected
+                                    ? "border-[var(--blue)] text-[var(--blue)] bg-[var(--blue-g)]"
+                                    : "border-[var(--bdr)] text-[var(--t3)] hover:text-[var(--t1)] hover:border-[var(--t3)] bg-transparent"
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                          {site.nextDueAt && (
+                            <span className="ml-auto text-[10px] font-mono text-[var(--t3)]">
+                              next {timeUntil(site.nextDueAt)}
+                            </span>
+                          )}
+                        </div>
                         <div className="flex gap-2 mb-2">
                           <input
                             value={editUrl}

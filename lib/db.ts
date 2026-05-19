@@ -57,6 +57,11 @@ export interface WatchedSite {
   history: ChangeEntry[];
   watchTarget: string | null;
   refreshInterval: number | null;
+  // When the background cron is next due to scrape this page (epoch ms).
+  // Maintained server-side by triggers; surfaced here so cards can render
+  // "Next check in X". Null when the page has no active watchers (cron
+  // skipped) or for sites that have never been scraped.
+  nextDueAt: number | null;
   // Current resolved watch-target value pulled from the latest snapshot's
   // fact bag. Null when the watch target is unset, doesn't match any fact
   // key, or the latest snapshot has no facts.
@@ -83,6 +88,7 @@ function emptySite(overrides: Partial<WatchedSite>): WatchedSite {
     history: [],
     watchTarget: null,
     refreshInterval: null,
+    nextDueAt: null,
     trackedFact: null,
     ...overrides,
   };
@@ -131,6 +137,7 @@ type WatchRow = {
     label: string;
     latest_snapshot_id: string | null;
     last_fetched_at: string | null;
+    next_due_at: string | null;
   } | null;
 };
 
@@ -143,6 +150,9 @@ function rowToSite(row: WatchRow): WatchedSite | null {
     label: row.pages.label,
     watchTarget: row.watch_target,
     refreshInterval: row.refresh_interval_seconds,
+    nextDueAt: row.pages.next_due_at
+      ? new Date(row.pages.next_due_at).getTime()
+      : null,
   });
 }
 
@@ -191,7 +201,7 @@ export async function getSites(): Promise<WatchedSite[]> {
   const { data, error } = await client
     .from("watches")
     .select(
-      "id, watch_target, refresh_interval_seconds, pages(id, url, label, latest_snapshot_id, last_fetched_at)",
+      "id, watch_target, refresh_interval_seconds, pages(id, url, label, latest_snapshot_id, last_fetched_at, next_due_at)",
     )
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });

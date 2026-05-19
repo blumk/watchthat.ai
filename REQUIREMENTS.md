@@ -45,6 +45,11 @@ this doc is the human-readable summary.
 - When the watch's `watchTarget` resolved against the fact bag, shows a small tracked-value badge under the label (e.g. `Rating 4.5`). Hidden when `trackedFact` is null [`WatchedSites.test.tsx`]
 - History entries whose snapshot moved the tracked value are prefixed with a mono `Display X → Y · ` marker in front of the description; the initial entry's prefix shows just the first-seen value [`WatchedSites.test.tsx`]
 
+**Refresh cadence**
+- Collapsed card shows a "Every Nh · next in Xh" line beneath the subtitle when the site has a `refreshInterval`. Both halves come from `useVisibilityTick`, so the relative-time half updates on tab refocus [`WatchedSites.test.tsx`]
+- Edit-mode footer shows interval radio chips (1h / 6h / 24h) above the URL input; the currently-selected interval is highlighted [`WatchedSites.test.tsx`]
+- Clicking a chip patches the site optimistically with the new `refreshInterval` and a locally-computed `nextDueAt = lastChecked + interval` (mirrors the DB trigger), and persists via `updateSite` so the server's pg_cron picks up the new cadence. Clicking the already-selected chip is a no-op [`WatchedSites.test.tsx`]
+
 **Remove**
 - "Remove website" link shown in the expanded footer [`WatchedSites.test.tsx`]
 - Clicking it calls `onRemove` with the site ID [`WatchedSites.test.tsx`]
