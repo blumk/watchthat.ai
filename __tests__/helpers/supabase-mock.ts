@@ -12,6 +12,7 @@ export interface FakePage {
   last_fetched_at: string | null;
   latest_snapshot_id: string | null;
   next_due_at: string | null;
+  hidden_snapshot_ids: string[];
 }
 
 export interface FakeWatch {
@@ -193,6 +194,7 @@ class Query {
               last_fetched_at: null,
               latest_snapshot_id: null,
               next_due_at: null,
+              hidden_snapshot_ids: [],
             };
             this.state.pages.push(created);
             return { data: [created], error: null };

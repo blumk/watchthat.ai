@@ -48,7 +48,8 @@ this doc is the human-readable summary.
 **Dismiss a history entry**
 - Each expanded history row gets a desktop-only × button (top-right, hover-revealed) and a touch swipe gesture: dragging horizontally past 80 px in either direction flings the row out and dismisses it [`WatchedSites.test.tsx`]
 - A swipe shorter than 80 px snaps back without dismissing [`WatchedSites.test.tsx`]
-- Real snapshot-backed entries persist the dismissal on the watcher's `watches.hidden_snapshot_ids` array; `getSites` filters them out at read time so the dismissal sticks across reloads. Ephemeral entries (e.g. the "No change detected." row) clear locally only — they have synthetic ids and aren't worth persisting.
+- Real snapshot-backed entries persist the dismissal page-wide via `POST /api/snapshots/hide`, which appends the snapshot id to `pages.hidden_snapshot_ids`. Both `getSites` and the `/p/<pageId>` share view filter by that list, so "delete" means gone everywhere — for every watcher and every share-link viewer. Ephemeral entries (e.g. the "No change detected." row) clear locally only — they have synthetic ids and aren't worth persisting.
+- The hide route requires an authenticated anon-session JWT AND that the caller already has a watch on the page (403 otherwise). Re-hiding the same snapshot is a no-op (`alreadyHidden: true`). [`snapshots-hide.test.ts`]
 
 **Refinement notes**
 - Edit-mode footer has a "Notes for the AI" textarea pre-filled with the watch's existing `targetNotes`

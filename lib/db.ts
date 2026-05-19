@@ -138,7 +138,6 @@ type WatchRow = {
   watch_target: string | null;
   target_notes: string | null;
   refresh_interval_seconds: number;
-  hidden_snapshot_ids: string[] | null;
   pages: {
     id: string;
     url: string;
@@ -146,6 +145,7 @@ type WatchRow = {
     latest_snapshot_id: string | null;
     last_fetched_at: string | null;
     next_due_at: string | null;
+    hidden_snapshot_ids: string[] | null;
   } | null;
 };
 
@@ -210,7 +210,7 @@ export async function getSites(): Promise<WatchedSite[]> {
   const { data, error } = await client
     .from("watches")
     .select(
-      "id, watch_target, target_notes, refresh_interval_seconds, hidden_snapshot_ids, pages(id, url, label, latest_snapshot_id, last_fetched_at, next_due_at)",
+      "id, watch_target, target_notes, refresh_interval_seconds, pages(id, url, label, latest_snapshot_id, last_fetched_at, next_due_at, hidden_snapshot_ids)",
     )
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });
@@ -270,9 +270,10 @@ export async function getSites(): Promise<WatchedSite[]> {
     const pageSnapId = row.pages?.latest_snapshot_id;
     const snap = pageSnapId ? byId.get(pageSnapId) : null;
     const pageHistory = pageId ? historyByPage.get(pageId) ?? [] : [];
-    // Filter out snapshots this watcher has explicitly dismissed. Page-
-    // level history is shared, so other watchers still see them.
-    const hiddenIds = new Set(row.hidden_snapshot_ids ?? []);
+    // Filter out snapshots hidden page-wide (any watcher's swipe/× lands
+    // them here). Shared with the public /p/<id> share view so "delete"
+    // means gone everywhere.
+    const hiddenIds = new Set(row.pages?.hidden_snapshot_ids ?? []);
     const baseHistory =
       hiddenIds.size > 0
         ? pageHistory.filter((e) => !hiddenIds.has(e.id))
@@ -402,30 +403,34 @@ export async function updateSite(
   if (error) throw error;
 }
 
-// Mark a snapshot id as hidden from this user's change log. Idempotent —
-// we de-dup before writing. RLS scopes the update to the caller's own
-// watch row. Read-modify-write is intentionally not atomic; double-tap
-// races just produce the same final state.
+// Hide a snapshot at the page level — affects every watcher and the
+// public share view. Goes through /api/snapshots/hide which uses the
+// service-role client to update pages.hidden_snapshot_ids (anon RLS
+// blocks direct writes to pages).
 export async function hideHistoryEntry(
   siteId: string,
   snapshotId: string,
 ): Promise<void> {
-  const { client, user } = await ensureSession();
-  const { data: existing } = await client
-    .from("watches")
-    .select("hidden_snapshot_ids")
-    .eq("id", siteId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-  const current = (existing?.hidden_snapshot_ids ?? []) as string[];
-  if (current.includes(snapshotId)) return;
-  const next = Array.from(new Set([...current, snapshotId]));
-  const { error } = await client
-    .from("watches")
-    .update({ hidden_snapshot_ids: next })
-    .eq("id", siteId)
-    .eq("user_id", user.id);
-  if (error) throw error;
+  const { client } = await ensureSession();
+  const {
+    data: { session },
+  } = await client.auth.getSession();
+  const token = session?.access_token;
+  const res = await fetch("/api/snapshots/hide", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ snapshotId }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`hideHistoryEntry failed: ${res.status} ${body}`);
+  }
+  // siteId argument is unused under the page-level model — kept in the
+  // signature so call sites don't need updating.
+  void siteId;
 }
 
 export async function removeSite(id: string): Promise<void> {

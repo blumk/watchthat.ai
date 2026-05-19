@@ -25,6 +25,9 @@ export type Database = {
           // Maintained by triggers — when the cron should next scrape this
           // page. NULL when the page has no active watchers.
           next_due_at: string | null;
+          // Snapshot ids hidden page-wide by any watcher's swipe/× action.
+          // Filtered out of getSites and the public share view.
+          hidden_snapshot_ids: string[];
         };
         Insert: {
           id?: string;
@@ -34,6 +37,7 @@ export type Database = {
           latest_snapshot_id?: string | null;
           created_at?: string;
           next_due_at?: string | null;
+          hidden_snapshot_ids?: string[];
         };
         Update: Partial<Database["public"]["Tables"]["pages"]["Insert"]>;
         Relationships: [];

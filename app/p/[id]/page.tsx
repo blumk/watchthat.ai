@@ -28,7 +28,7 @@ export default async function SharedPage({
   const svc = createServiceClient();
   const { data: page } = await svc
     .from("pages")
-    .select("id, url, label, last_fetched_at, latest_snapshot_id")
+    .select("id, url, label, last_fetched_at, latest_snapshot_id, hidden_snapshot_ids")
     .eq("id", id)
     .maybeSingle();
   if (!page) notFound();
@@ -39,10 +39,13 @@ export default async function SharedPage({
     .eq("page_id", id)
     .order("fetched_at", { ascending: true });
 
-  return (
-    <SharedPageView
-      page={page}
-      snapshots={(snapshots ?? []) as SnapshotRow[]}
-    />
+  // Honor the same page-level dismissal list a watcher's getSites would —
+  // anyone hitting the share link sees the same trimmed history their card
+  // shows.
+  const hidden = new Set((page.hidden_snapshot_ids ?? []) as string[]);
+  const visible = ((snapshots ?? []) as SnapshotRow[]).filter(
+    (s) => !hidden.has(s.id),
   );
+
+  return <SharedPageView page={page} snapshots={visible} />;
 }

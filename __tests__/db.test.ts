@@ -108,6 +108,46 @@ describe("getSites", () => {
     expect(sites[0].lastContent).toBe("# Original text");
   });
 
+  it("filters history entries listed in pages.hidden_snapshot_ids", async () => {
+    await addSite("https://example.com");
+    const pageId = state.pages[0].id;
+    state.snapshots.push(
+      {
+        id: "snap-keep",
+        page_id: pageId,
+        fetched_at: new Date(Date.now() - 120_000).toISOString(),
+        content_hash: "a",
+        markdown: "# v1",
+        screenshot_path: null,
+        prev_snapshot_id: null,
+        change_description: null,
+        change_classification: "quiet" as const,
+        change_emoji: null,
+        facts: null,
+      },
+      {
+        id: "snap-hide",
+        page_id: pageId,
+        fetched_at: new Date(Date.now() - 60_000).toISOString(),
+        content_hash: "b",
+        markdown: "# v2",
+        screenshot_path: null,
+        prev_snapshot_id: "snap-keep",
+        change_description: "A change",
+        change_classification: "major" as const,
+        change_emoji: null,
+        facts: null,
+      },
+    );
+    state.pages[0].latest_snapshot_id = "snap-hide";
+    state.pages[0].hidden_snapshot_ids = ["snap-hide"];
+
+    const [site] = await getSites();
+    // snap-hide is gone; only the initial entry survives.
+    expect(site.history).toHaveLength(1);
+    expect(site.history[0].id).toBe("snap-keep");
+  });
+
   it("resolves watchTarget against the latest snapshot's facts and annotates history deltas", async () => {
     await addSite("https://example.com");
     const watch = state.watches[0];

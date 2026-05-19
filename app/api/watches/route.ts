@@ -5,10 +5,9 @@
 // Phase 3 will extend this to trigger scraping + snapshot persistence.
 
 import { NextResponse } from "next/server";
-import { createClient as createUserClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/utils/supabase/service";
-import type { Database } from "@/utils/supabase/database.types";
 import { normalizeUrl, extractLabel } from "@/lib/url";
+import { resolveUserFromAuthHeader } from "@/lib/auth";
 
 export async function POST(req: Request) {
   let body: { url?: string; watchTarget?: string | null };
@@ -28,7 +27,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid url" }, { status: 400 });
   }
 
-  const user = await resolveUser(req.headers.get("authorization"));
+  const user = await resolveUserFromAuthHeader(req.headers.get("authorization"));
   if (!user) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
@@ -82,19 +81,4 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ watch, page });
-}
-
-async function resolveUser(authHeader: string | null) {
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const token = authHeader.slice("Bearer ".length);
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!supabaseUrl || !supabaseKey) return null;
-  const client = createUserClient<Database>(supabaseUrl, supabaseKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { data, error } = await client.auth.getUser(token);
-  if (error || !data.user) return null;
-  return data.user;
 }
