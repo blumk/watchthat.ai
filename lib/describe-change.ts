@@ -53,23 +53,25 @@ export async function describeChange({
   // and the 200K context window has plenty more headroom if we need it.
   const MARKDOWN_SLICE = 8000;
   const content =
-    `A monitored web page changed.\n\n` +
+    `A monitored web page changed. Everything you say in the description must be grounded in the visible page content below — that's what the user actually sees on the page.\n\n` +
     `URL: ${url}\n` +
     `Watch target: ${watchTarget}\n` +
     (targetsBlock ? `${targetsBlock}\n` : "") +
-    `Previous value: ${oldValue.slice(0, MARKDOWN_SLICE)}\n` +
-    `New value: ${newValue.slice(0, MARKDOWN_SLICE)}\n` +
+    `Previous value (page content as the user sees it): ${oldValue.slice(0, MARKDOWN_SLICE)}\n` +
+    `New value (page content as the user sees it): ${newValue.slice(0, MARKDOWN_SLICE)}\n` +
     (factsBlock ? `\n${factsBlock}\n` : "") +
     `\nReturn only a JSON object:\n` +
-    `- "description": one plain-English sentence a non-technical user would understand, max 15 words, e.g. "The price dropped from $99 to $79."${
+    `- "description": one plain-English sentence a non-technical user would understand, max 15 words, e.g. "The price dropped from $99 to $79." Ground every number/name in the visible page content above.${
       hasSpecificTargets
-        ? ' Look CAREFULLY for changes to the user-specified properties above; even small numeric moves (e.g. 440 → 480) count when they\'re in a tracked property. When you find one, lead with the exact before → after value (e.g. "Price rose from $440 to $480."). If none of the user-specified properties changed, say so directly — e.g. "Price unchanged at $440." — and set classification to "minor".'
-        : factsBlock
-        ? ' When the structured-data changes above include a concrete before→after, lead with that exact value (e.g. "Rating dropped from 4.5 to 4.4.").'
+        ? ' Focus on the user-specified properties; even small numeric moves count when they\'re in a tracked property. Lead with the exact before → after value from the visible content (e.g. "Price rose from $440 to $480."). If none of the user-specified properties changed in the visible content, say so directly ("Price unchanged at $440.") and set classification to "minor".'
+        : ""
+    }${
+      factsBlock
+        ? ' The background metadata is OPTIONAL precision context: only quote a metadata number when it corresponds to (and adds resolution to) a value already visible in the page content — e.g. the page says "2.5k reviews" and metadata shows reviewCount 2523 → 2548 → quote 2548. Never quote a metadata value that doesn\'t map to something the user can see; never let metadata override or contradict the visible content.'
         : ""
     }\n` +
     `- "classification": "major" if significant (pricing, people, features, availability)${
-      hasSpecificTargets ? " — any change to a user-specified property above is automatically major" : ""
+      hasSpecificTargets ? " — any change to a user-specified property is automatically major" : ""
     }, otherwise "minor"\n` +
     `- "emoji": one emoji that best captures the sentiment or nature of the change, e.g. 📈 improving/growing, 📉 declining/worsening, 💰 price change, 🚀 launch/release, 🛠️ maintenance/fix, ⚠️ warning/issue, 🎉 good news, 👤 people/personnel, 🔒 security, 📅 date/deadline`;
 
@@ -123,5 +125,5 @@ function formatFactsDiff(changes: FactChange[] | undefined): string {
     if (c.after !== undefined) return `- ${c.key}: (new) ${c.after}`;
     return `- ${c.key}: (removed, was ${c.before})`;
   });
-  return `Structured-data changes (trust these over prose):\n${lines.join("\n")}`;
+  return `Background metadata — OPTIONAL precision hints from the page's JSON-LD / OG meta. Use ONLY when a value here adds resolution to something already visible in the page content (e.g. page says "2.5k" → metadata shows "2523"). Ignore any value that doesn't map to something visible:\n${lines.join("\n")}`;
 }
