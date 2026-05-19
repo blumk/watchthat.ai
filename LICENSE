@@ -1,16 +1,24 @@
-MIT License
+Copyright (c) 2026 WatchThat. All rights reserved.
 
-Copyright (c) 2026 WatchThat
+This source code is made publicly viewable for reference, review, and
+discussion. It is NOT open source.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+No license is granted, expressly or by implication, to use, copy, modify,
+merge, publish, distribute, sublicense, host, or sell copies of this
+Software, or any substantial portion of it, or to use the "WatchThat" name,
+brand, or trademarks, for any purpose, commercial or non-commercial, without
+the prior written permission of the copyright holder.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Permitted activities, without prior permission:
+  - Reading the source.
+  - Forking on a public code-hosting platform solely to propose changes
+    back to the upstream repository via pull request.
+  - Quoting short excerpts in articles, posts, or talks with attribution.
+
+All other activities — including running a modified or unmodified copy as
+a service, vendoring code into another project, redistributing the source
+or compiled output, or training machine-learning models on this codebase —
+require an explicit license agreement.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,

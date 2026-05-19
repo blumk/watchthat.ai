@@ -191,4 +191,8 @@ where next_due_at <= now() order by next_due_at limit 20;
 
 ## License
 
-MIT
+Source-available, all rights reserved. The code in this repository is published
+for reference, review, and pull-request contribution only — it is **not** open
+source and may not be used, copied, modified, redistributed, hosted as a
+service, or trained on without prior written permission. See `LICENSE` for
+the full notice.
