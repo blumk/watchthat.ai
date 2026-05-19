@@ -11,9 +11,6 @@ jest.mock("@/lib/db", () => ({
   hideHistoryEntry: jest.fn().mockResolvedValue(undefined),
 }));
 
-// Silence console.error for expected fetch errors
-beforeAll(() => jest.spyOn(console, "error").mockImplementation(() => {}));
-afterAll(() => (console.error as jest.Mock).mockRestore());
 
 const makeSite = (overrides: Partial<WatchedSite> = {}): WatchedSite => ({
   id: "abc123",
@@ -351,7 +348,7 @@ describe("WatchedSites", () => {
     expect(patch.history[0].id).toBe("a1b2c3d4-1111-2222-3333-444455556666");
   });
 
-  it("dismisses an entry via touch swipe past the threshold", () => {
+  it("dismisses an entry via touch swipe past the threshold", async () => {
     const onUpdate = jest.fn();
     const entryId = "a1b2c3d4-1111-2222-3333-444455556666";
     render(
@@ -373,21 +370,17 @@ describe("WatchedSites", () => {
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /expand/i }));
-    // Grab the entry row by its description.
     const row = screen.getByText("Major change").closest("div[onTouchStart], .group\\/entry") as HTMLElement
       ?? screen.getByText("Major change").parentElement!.parentElement!.parentElement!;
     // Swipe left past the 80px dismiss threshold.
     fireEvent.touchStart(row, { touches: [{ clientX: 200, clientY: 0 }] });
     fireEvent.touchMove(row, { touches: [{ clientX: 80, clientY: 0 }] });
     fireEvent.touchEnd(row, { changedTouches: [{ clientX: 80, clientY: 0 }] });
-    // Dismiss runs after the 200ms fling-out timer.
-    return new Promise<void>((resolve) => {
-      setTimeout(() => {
-        expect(onUpdate).toHaveBeenCalledTimes(1);
-        expect(onUpdate.mock.calls[0][1].history).toEqual([]);
-        resolve();
-      }, 220);
-    });
+    // Dismiss runs after the 200ms fling-out timer. waitFor wraps the
+    // poll in act() so the trailing setSwipe(null) state update doesn't
+    // print an "update not wrapped in act" warning.
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    expect(onUpdate.mock.calls[0][1].history).toEqual([]);
   });
 
   it("swipe under the threshold snaps back without dismissing", () => {

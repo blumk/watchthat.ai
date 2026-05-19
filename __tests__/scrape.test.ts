@@ -99,6 +99,7 @@ describe("POST /api/scrape", () => {
   });
 
   it("returns 500 when Firecrawl throws", async () => {
+    const errSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     MockFirecrawlApp.mockImplementationOnce(
       () =>
         ({
@@ -107,6 +108,12 @@ describe("POST /api/scrape", () => {
     );
     const res = await POST(makeRequest({ url: "https://example.com" }));
     expect(res.status).toBe(500);
+    expect(errSpy).toHaveBeenCalledWith(
+      "[scrape] error",
+      expect.any(String),
+      expect.any(Object),
+    );
+    errSpy.mockRestore();
   });
 
   it("inserts a first snapshot with no change description and cached=false", async () => {
@@ -463,6 +470,7 @@ describe("POST /api/scrape", () => {
   });
 
   it("falls back to a generic description if describeChange throws", async () => {
+    const errSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     mockDescribeChange.mockRejectedValueOnce(new Error("claude down"));
     await POST(makeRequest({ url: "https://example.com" }));
     state.pages[0].last_fetched_at = new Date(Date.now() - 600_000).toISOString();
@@ -472,5 +480,10 @@ describe("POST /api/scrape", () => {
     const body = await res.json();
     expect(body.snapshot.change_description).toBe("Page content changed.");
     expect(body.snapshot.change_classification).toBe("minor");
+    expect(errSpy).toHaveBeenCalledWith(
+      "[scrape] describe-change failed",
+      expect.any(Error),
+    );
+    errSpy.mockRestore();
   });
 });

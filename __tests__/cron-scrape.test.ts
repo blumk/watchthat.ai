@@ -53,14 +53,20 @@ afterAll(() => {
 
 describe("POST /api/cron/scrape", () => {
   it("returns 401 when the Authorization header doesn't match CRON_SECRET", async () => {
+    const errSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     const res = await POST(makeRequest({ pageId: "page-1" }, "Bearer wrong"));
     expect(res.status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(errSpy).toHaveBeenCalledWith("[cron-scrape] 401", expect.any(Object));
+    errSpy.mockRestore();
   });
 
   it("returns 401 when the Authorization header is missing", async () => {
+    const errSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     const res = await POST(makeRequest({ pageId: "page-1" }));
     expect(res.status).toBe(401);
+    expect(errSpy).toHaveBeenCalledWith("[cron-scrape] 401", expect.any(Object));
+    errSpy.mockRestore();
   });
 
   it("returns 400 when pageId is missing", async () => {

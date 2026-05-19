@@ -78,6 +78,7 @@ describe("POST /api/describe-change", () => {
   });
 
   it("returns 500 when Claude throws", async () => {
+    const errSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     MockAnthropic.mockImplementationOnce(
       () =>
         ({
@@ -95,5 +96,10 @@ describe("POST /api/describe-change", () => {
       })
     );
     expect(res.status).toBe(500);
+    expect(errSpy).toHaveBeenCalledWith(
+      "[describe-change] error",
+      expect.any(Error),
+    );
+    errSpy.mockRestore();
   });
 });

@@ -91,6 +91,7 @@ describe("POST /api/analyze", () => {
   });
 
   it("returns 500 when Claude throws", async () => {
+    const errSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     MockAnthropic.mockImplementationOnce(
       () =>
         ({
@@ -103,5 +104,10 @@ describe("POST /api/analyze", () => {
       makeRequest({ markdown: "content" })
     );
     expect(res.status).toBe(500);
+    expect(errSpy).toHaveBeenCalledWith(
+      "[analyze] error",
+      expect.any(Error),
+    );
+    errSpy.mockRestore();
   });
 });
