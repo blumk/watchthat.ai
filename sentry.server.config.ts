@@ -22,7 +22,14 @@ try {
 Sentry.init({
   dsn: "https://d3c2a0943ee5884a02e7e194f97342c4@o4511259471052801.ingest.us.sentry.io/4511259471970304",
 
-  integrations: profilingIntegration ? [profilingIntegration] : [],
+  // consoleLoggingIntegration routes console.error / console.warn into the
+  // Sentry Logs explorer (requires enableLogs: true below). Without this,
+  // backend `console.error("…")` calls never reach Sentry at all — they
+  // only show up in Vercel function logs.
+  integrations: [
+    ...(profilingIntegration ? [profilingIntegration] : []),
+    Sentry.consoleLoggingIntegration({ levels: ["error", "warn"] }),
+  ],
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,

@@ -13,9 +13,13 @@ import * as Sentry from "@sentry/nextjs";
 const profilingSupported =
   typeof window !== "undefined" && "Profiler" in window;
 
-const integrations = profilingSupported
-  ? [Sentry.replayIntegration(), Sentry.browserProfilingIntegration()]
-  : [Sentry.replayIntegration()];
+const integrations = [
+  Sentry.replayIntegration(),
+  // Routes console.error / console.warn into the Sentry Logs explorer
+  // (paired with enableLogs: true below). Server config does the same.
+  Sentry.consoleLoggingIntegration({ levels: ["error", "warn"] }),
+  ...(profilingSupported ? [Sentry.browserProfilingIntegration()] : []),
+];
 
 Sentry.init({
   dsn: "https://d3c2a0943ee5884a02e7e194f97342c4@o4511259471052801.ingest.us.sentry.io/4511259471970304",
