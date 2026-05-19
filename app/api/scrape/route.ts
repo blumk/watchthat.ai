@@ -33,7 +33,8 @@ import { normalizeUrl, extractLabel } from "@/lib/url";
 import { sha256Hex } from "@/lib/sha256";
 import { describeChange } from "@/lib/describe-change";
 import { decorateSnapshot, type SnapshotRow } from "@/lib/snapshot";
-import { extractFacts, diffFacts, factsBlob, type FactBag } from "@/lib/facts";
+import { extractFacts, diffFacts, factsBlob, type FactBag, type FactChange } from "@/lib/facts";
+import { matchTargetToFact } from "@/lib/watch-target-match";
 
 const SCRAPE_TIMEOUT_MS = 300_000;
 const DEDUP_WINDOW_MS = 300_000; // 5 minutes
@@ -176,6 +177,17 @@ export async function POST(request: Request) {
       // buried in a noisy markdown diff gets summarised as "nothing
       // significant changed."
       const watchTargets = await loadWatchTargets(svc, page.id);
+      // Filter the fact diff to only the keys the user's watch targets
+      // actually resolve to. Otherwise the prompt's "trust structured data
+      // over prose" instruction makes Claude faithfully report e.g.
+      // Product.offers.lowPrice (a marketplace-wide floor price) when the
+      // user only cares about "General Admission ticket price" — values
+      // that look authoritative but answer the wrong question.
+      const relevantFactsDiff = filterFactsDiffByTargets(
+        factsDiff,
+        watchTargets,
+        facts,
+      );
       try {
         const desc = await describeChange({
           oldValue: prevMarkdown,
@@ -183,7 +195,7 @@ export async function POST(request: Request) {
           watchTarget: "page content",
           watchTargets,
           url,
-          factsDiff,
+          factsDiff: relevantFactsDiff,
         });
         description = desc.description;
         classification = desc.classification;
@@ -291,6 +303,30 @@ function firecrawlErrorResponse(url: string, err: unknown) {
 async function loadSnapshot(svc: Svc, id: string): Promise<SnapshotRow | null> {
   const { data } = await svc.from("snapshots").select("*").eq("id", id).maybeSingle();
   return (data as SnapshotRow | null) ?? null;
+}
+
+// When users gave specific watch targets, drop fact-diff entries whose
+// keys don't resolve from any of those targets via matchTargetToFact —
+// the structured-data prompt block is otherwise dangerously authoritative
+// for irrelevant signals (e.g. a marketplace `offers.lowPrice` showing up
+// as a "price change" when the user wanted a specific section's price).
+//
+// Empty watchTargets means there are no user-specified properties at all,
+// so we leave the full diff in place (factsDiff is then just generic
+// context for whoever happens to be watching).
+function filterFactsDiffByTargets(
+  factsDiff: FactChange[],
+  watchTargets: string[],
+  facts: FactBag,
+): FactChange[] {
+  if (watchTargets.length === 0 || factsDiff.length === 0) return factsDiff;
+  const relevant = new Set<string>();
+  for (const target of watchTargets) {
+    const match = matchTargetToFact(target, facts);
+    if (match) relevant.add(match.key);
+  }
+  if (relevant.size === 0) return [];
+  return factsDiff.filter((c) => relevant.has(c.key));
 }
 
 // Distinct non-null watch targets across every user watching this page —

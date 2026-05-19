@@ -341,6 +341,68 @@ describe("POST /api/scrape", () => {
     expect(arg.watchTargets).toHaveLength(2); // de-duped, null dropped
   });
 
+  it("drops fact-diff entries that don't resolve from any user watch target", async () => {
+    // First scrape seeds the page with JSON-LD pricing. The user is
+    // watching for "General Admission ticket price" — which has no
+    // counterpart in StubHub's Product.offers.lowPrice (different concept).
+    const jsonLd = (low: string) => `
+      <script type="application/ld+json">
+      {"@type":"Product","name":"Event","offers":{"lowPrice":"${low}","priceCurrency":"USD"}}
+      </script>`;
+    mockFirecrawl("# Event listings\n\nGA $483", FIRECRAWL_SHOT, jsonLd("250.43"));
+    await POST(makeRequest({ url: "https://example.com" }));
+    const pageId = state.pages[0].id;
+    state.watches.push({
+      id: "w-1",
+      user_id: "u-1",
+      page_id: pageId,
+      watch_target: "General Admission ticket price",
+      refresh_interval_seconds: 86400,
+      created_at: Date.now(),
+    });
+
+    state.pages[0].last_fetched_at = new Date(Date.now() - 600_000).toISOString();
+    // GA price moves $483 → $479 in markdown; JSON-LD lowPrice independently
+    // moves $250.43 → $251.80. We don't want the irrelevant JSON-LD diff
+    // misleading Claude into "GA rose from $250.43 to $251.80".
+    mockFirecrawl("# Event listings\n\nGA $479", FIRECRAWL_SHOT, jsonLd("251.80"));
+
+    await POST(makeRequest({ url: "https://example.com" }));
+    expect(mockDescribeChange).toHaveBeenCalledTimes(1);
+    const arg = mockDescribeChange.mock.calls[0][0];
+    // Filter wipes the fact diff because "General Admission ticket price"
+    // doesn't resolve to Product.offers.lowPrice (veto on general/admission/ticket).
+    expect(arg.factsDiff).toEqual([]);
+  });
+
+  it("keeps fact-diff entries when at least one user target resolves to the key", async () => {
+    const jsonLd = (price: string) => `
+      <script type="application/ld+json">
+      {"@type":"Product","name":"Widget","offers":{"price":"${price}","priceCurrency":"USD"}}
+      </script>`;
+    mockFirecrawl("# Widget", FIRECRAWL_SHOT, jsonLd("99"));
+    await POST(makeRequest({ url: "https://example.com" }));
+    const pageId = state.pages[0].id;
+    state.watches.push({
+      id: "w-1",
+      user_id: "u-1",
+      page_id: pageId,
+      watch_target: "price",
+      refresh_interval_seconds: 86400,
+      created_at: Date.now(),
+    });
+
+    state.pages[0].last_fetched_at = new Date(Date.now() - 600_000).toISOString();
+    mockFirecrawl("# Widget — sale", FIRECRAWL_SHOT, jsonLd("79"));
+
+    await POST(makeRequest({ url: "https://example.com" }));
+    const arg = mockDescribeChange.mock.calls[0][0];
+    // "price" resolves to Product.offers.price → that diff entry stays.
+    expect(arg.factsDiff).toEqual([
+      { key: "Product.offers.price", before: "99", after: "79" },
+    ]);
+  });
+
   it("falls back to a generic description if describeChange throws", async () => {
     mockDescribeChange.mockRejectedValueOnce(new Error("claude down"));
     await POST(makeRequest({ url: "https://example.com" }));
