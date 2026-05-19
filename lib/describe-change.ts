@@ -71,7 +71,7 @@ export async function describeChange({
     `New value (page content as the user sees it): ${newValue.slice(0, MARKDOWN_SLICE)}\n` +
     (factsBlock ? `\n${factsBlock}\n` : "") +
     `\nReturn only a JSON object:\n` +
-    `- "description": one plain-English sentence a non-technical user would understand, max 15 words, e.g. "The price dropped from $99 to $79." Ground every number/name in the visible page content above.${
+    `- "description": one plain-English sentence a non-technical user would understand, max 15 words, e.g. "The price dropped from $99 to $79." Ground every number/name in the visible page content above. Never frame the change as a "recovery", "restoration", "now accessible", or any narrative about returning from a broken/error/loading state — if the previous content looked partial or odd that's just the baseline. Describe what's now visible in concrete terms (e.g. "Rating shown as 4.5 with 1,217 reviews."), never narrate the transition (e.g. NOT "page recovered from error to show 4.5").${
       hasUserNotes
         ? ' The user refinement notes above are authoritative — follow them over your own interpretation of the page. If they tell you which section to read, read THAT section; if they tell you to ignore certain values, ignore them.'
         : ""
