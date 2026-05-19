@@ -164,14 +164,19 @@ Watched pages are re-scraped in the background on each user's chosen interval (d
    ```
    > `vault.create_secret(value, name)` — values are encrypted at rest. To rotate later: `select vault.update_secret(id, new_value, name)` where `id` comes from `select id from vault.secrets where name = 'cron_secret'`.
 2. Set `CRON_SECRET` in Vercel → Environment Variables to the **same** value as the `cron_secret` Vault entry.
+3. **(If Vercel Deployment Protection is on)** Vercel → Project Settings → Deployment Protection → "Protection Bypass for Automation" → generate a token, then:
+   ```sql
+   select vault.create_secret('<bypass token>', 'vercel_bypass');
+   ```
+   The cron function sends this in `x-vercel-protection-bypass` so Vercel lets the request through to `/api/cron/scrape`. Skip if Deployment Protection is off — the function will send an empty header and Vercel will ignore it.
 
 Until both Vault entries exist, the cron function logs a warning and no-ops on every tick — safe to apply the migration before populating Vault.
 
 **How it works:**
 - `watches.refresh_interval_seconds` — per-user choice (default 86400). DB CHECK constraint enforces a 1h floor.
 - `pages.next_due_at` — when the cron should next scrape this page, maintained by triggers on `snapshots` (insert) and `watches` (insert/update/delete). NULL when the page has no active watchers.
-- pg_cron job `refresh-due-pages` runs every 5 minutes. It picks up to 25 due pages (`next_due_at <= now()`), claims each by pushing `next_due_at` forward 10 min (built-in retry window), and fires `pg_net.http_post` to `${cron_base_url}/api/cron/scrape` with `Authorization: Bearer ${cron_secret}`.
-- The Vercel route validates the bearer against `CRON_SECRET`, looks up the page's URL, and calls `/api/scrape` internally. The snapshot-insert trigger then writes a fresh `next_due_at` based on `min(refresh_interval_seconds)` across watchers.
+- pg_cron job `refresh-due-pages` runs every 5 minutes. It picks up to 25 due pages (`next_due_at <= now()`), claims each by pushing `next_due_at` forward 10 min (built-in retry window), and fires `pg_net.http_post` to `${cron_base_url}/api/cron/scrape` with `X-Cron-Secret: ${cron_secret}` and `x-vercel-protection-bypass: ${vercel_bypass}` headers.
+- The Vercel route validates the secret against `CRON_SECRET` (accepts either the `X-Cron-Secret` header or `Authorization: Bearer …`), looks up the page's URL, and calls `/api/scrape` internally. The snapshot-insert trigger then writes a fresh `next_due_at` based on `min(refresh_interval_seconds)` across watchers.
 
 **Useful diagnostic queries (Supabase SQL editor):**
 

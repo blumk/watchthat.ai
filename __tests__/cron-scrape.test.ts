@@ -74,6 +74,28 @@ describe("POST /api/cron/scrape", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("accepts the secret via X-Cron-Secret header (Authorization-stripping middleware workaround)", async () => {
+    state.pages.push({
+      id: "page-1",
+      url: "https://example.com/",
+      label: "example.com",
+      last_fetched_at: null,
+      latest_snapshot_id: null,
+      next_due_at: null,
+      hidden_snapshot_ids: [],
+    });
+    const req = new Request("https://example.test/api/cron/scrape", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Cron-Secret": "test-secret",
+      },
+      body: JSON.stringify({ pageId: "page-1" }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+  });
+
   it("delegates to /api/scrape with the page's URL when authorized", async () => {
     state.pages.push({
       id: "page-1",

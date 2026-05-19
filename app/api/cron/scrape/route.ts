@@ -14,18 +14,30 @@ export const maxDuration = 300;
 
 export async function POST(req: Request) {
   const expected = process.env.CRON_SECRET;
+  // Accept the secret via either Authorization: Bearer ... OR
+  // X-Cron-Secret: ... — supabase-ssr's middleware was eating the
+  // Authorization header looking for a Supabase JWT, so we ship a
+  // belt-and-braces custom header that doesn't look like a JWT and
+  // nothing in the middleware chain has any reason to touch.
   const auth = req.headers.get("authorization");
-  if (!expected || auth !== `Bearer ${expected}`) {
-    // Diagnostic in the response body so the caller (pg_net) stores it on
-    // net._http_response.content — readable via SQL even when Vercel logs
-    // get dropped. Secret-free: lengths + last-4 tails only.
-    const received = auth?.startsWith("Bearer ") ? auth.slice("Bearer ".length) : auth;
+  const customHeader = req.headers.get("x-cron-secret");
+  const bearerToken = auth?.startsWith("Bearer ")
+    ? auth.slice("Bearer ".length)
+    : null;
+  const authorized =
+    !!expected &&
+    ((bearerToken !== null && bearerToken === expected) ||
+      (customHeader !== null && customHeader === expected));
+
+  if (!authorized) {
+    const received = bearerToken ?? customHeader;
     const diag = {
       error: "unauthorized",
       hasExpectedEnvVar: Boolean(expected),
       expectedLen: expected?.length ?? 0,
       hasAuthHeader: Boolean(auth),
       authStartsWithBearer: auth?.startsWith("Bearer ") ?? false,
+      hasCustomHeader: Boolean(customHeader),
       receivedTokenLen: received?.length ?? 0,
       expectedTail: expected?.slice(-4) ?? null,
       receivedTail: received?.slice(-4) ?? null,
