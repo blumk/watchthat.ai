@@ -45,13 +45,20 @@ export async function describeChange({
   const factsBlock = formatFactsDiff(factsDiff);
   const targetsBlock = formatWatchTargets(watchTargets);
   const hasSpecificTargets = Boolean(targetsBlock);
+  // Slice each markdown to ~8K chars. We previously sent 2K — Haiku-era
+  // conservatism — but real pages (ticket marketplaces, product pages)
+  // routinely push the meaningful content below the nav/menu fluff, so
+  // a 2K window misses the actual price/rating Claude needs to find.
+  // ~8K chars ≈ 2K tokens; the 4× bump costs ~$0.003/call on Haiku 4.5
+  // and the 200K context window has plenty more headroom if we need it.
+  const MARKDOWN_SLICE = 8000;
   const content =
     `A monitored web page changed.\n\n` +
     `URL: ${url}\n` +
     `Watch target: ${watchTarget}\n` +
     (targetsBlock ? `${targetsBlock}\n` : "") +
-    `Previous value: ${oldValue.slice(0, 2000)}\n` +
-    `New value: ${newValue.slice(0, 2000)}\n` +
+    `Previous value: ${oldValue.slice(0, MARKDOWN_SLICE)}\n` +
+    `New value: ${newValue.slice(0, MARKDOWN_SLICE)}\n` +
     (factsBlock ? `\n${factsBlock}\n` : "") +
     `\nReturn only a JSON object:\n` +
     `- "description": one plain-English sentence a non-technical user would understand, max 15 words, e.g. "The price dropped from $99 to $79."${
