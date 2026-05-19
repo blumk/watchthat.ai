@@ -314,7 +314,9 @@ describe("WatchedSites", () => {
   });
 
   it("shows the refresh cadence line on a collapsed card when refreshInterval is set", () => {
-    const futureMs = Date.now() + 5 * 3600 * 1000;
+    // 5h + 60s buffer — without the buffer, ms drift between setup and
+    // render can roll Math.floor(sec/3600) down to "in 4h" on slow CI.
+    const futureMs = Date.now() + 5 * 3600 * 1000 + 60_000;
     render(
       <WatchedSites
         sites={[makeSite({ refreshInterval: 86400, nextDueAt: futureMs })]}
