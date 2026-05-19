@@ -313,6 +313,45 @@ describe("WatchedSites", () => {
     expect(patch.history[0].description).toBe("Price dropped from $99 to $79.");
   });
 
+  it("persists target notes on blur via onUpdate", () => {
+    const onUpdate = jest.fn();
+    render(
+      <WatchedSites
+        sites={[makeSite({ targetNotes: null })]}
+        onUpdate={onUpdate}
+        onRemove={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /expand/i }));
+    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+    const notes = screen.getByLabelText("Refinement notes for the AI");
+    fireEvent.change(notes, {
+      target: { value: "Look for $ value under '### General Admission'." },
+    });
+    fireEvent.blur(notes);
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(onUpdate.mock.calls[0][1]).toEqual({
+      targetNotes: "Look for $ value under '### General Admission'.",
+    });
+  });
+
+  it("no-ops the notes textarea blur when nothing changed", () => {
+    const onUpdate = jest.fn();
+    render(
+      <WatchedSites
+        sites={[makeSite({ targetNotes: "Existing notes" })]}
+        onUpdate={onUpdate}
+        onRemove={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /expand/i }));
+    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+    const notes = screen.getByLabelText("Refinement notes for the AI");
+    expect((notes as HTMLTextAreaElement).value).toBe("Existing notes");
+    fireEvent.blur(notes);
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
   it("shows the refresh cadence line on a collapsed card when refreshInterval is set", () => {
     // 5h + 60s buffer — without the buffer, ms drift between setup and
     // render can roll Math.floor(sec/3600) down to "in 4h" on slow CI.

@@ -12,6 +12,11 @@ export interface DescribeChangeInput {
   // describing the diff generally — a $40 price change in a noisy markdown
   // diff otherwise gets summarised as "no significant changes."
   watchTargets?: string[];
+  // Free-form user notes refining what to track ("the price labeled
+  // 'General Admission' under '## listings'; ignore JSON-LD aggregate
+  // prices"). Treated as authoritative guidance in the prompt — Claude is
+  // told to follow them over its own interpretation of the page.
+  userNotes?: string[];
   url: string;
   // Optional structured-data diff (JSON-LD / meta). When present, the model
   // is told to prefer these precise facts over prose inferences — markdown
@@ -34,6 +39,7 @@ export async function describeChange({
   newValue,
   watchTarget,
   watchTargets,
+  userNotes,
   url,
   factsDiff,
 }: DescribeChangeInput): Promise<DescribeChangeResult> {
@@ -44,7 +50,9 @@ export async function describeChange({
 
   const factsBlock = formatFactsDiff(factsDiff);
   const targetsBlock = formatWatchTargets(watchTargets);
+  const notesBlock = formatUserNotes(userNotes);
   const hasSpecificTargets = Boolean(targetsBlock);
+  const hasUserNotes = Boolean(notesBlock);
   // Slice each markdown to ~8K chars. We previously sent 2K — Haiku-era
   // conservatism — but real pages (ticket marketplaces, product pages)
   // routinely push the meaningful content below the nav/menu fluff, so
@@ -57,11 +65,16 @@ export async function describeChange({
     `URL: ${url}\n` +
     `Watch target: ${watchTarget}\n` +
     (targetsBlock ? `${targetsBlock}\n` : "") +
+    (notesBlock ? `${notesBlock}\n` : "") +
     `Previous value (page content as the user sees it): ${oldValue.slice(0, MARKDOWN_SLICE)}\n` +
     `New value (page content as the user sees it): ${newValue.slice(0, MARKDOWN_SLICE)}\n` +
     (factsBlock ? `\n${factsBlock}\n` : "") +
     `\nReturn only a JSON object:\n` +
     `- "description": one plain-English sentence a non-technical user would understand, max 15 words, e.g. "The price dropped from $99 to $79." Ground every number/name in the visible page content above.${
+      hasUserNotes
+        ? ' The user refinement notes above are authoritative — follow them over your own interpretation of the page. If they tell you which section to read, read THAT section; if they tell you to ignore certain values, ignore them.'
+        : ""
+    }${
       hasSpecificTargets
         ? ' Focus on the user-specified properties; even small numeric moves count when they\'re in a tracked property. Lead with the exact before → after value from the visible content (e.g. "Price rose from $440 to $480."). If none of the user-specified properties changed in the visible content, say so directly ("Price unchanged at $440.") and set classification to "minor".'
         : ""
@@ -114,6 +127,15 @@ function formatWatchTargets(targets: string[] | undefined): string {
   ).slice(0, 20);
   if (clean.length === 0) return "";
   return `User-specified properties to monitor (focus the description on these — these are what users explicitly asked you to track):\n${clean.map((t) => `- "${t}"`).join("\n")}`;
+}
+
+function formatUserNotes(notes: string[] | undefined): string {
+  if (!notes || notes.length === 0) return "";
+  const clean = Array.from(
+    new Set(notes.map((n) => n.trim()).filter(Boolean)),
+  ).slice(0, 20);
+  if (clean.length === 0) return "";
+  return `User refinement notes (authoritative guidance from the user about what specifically to watch — follow these literally; they exist because the user already saw the AI get it wrong without them):\n${clean.map((n) => `- ${n}`).join("\n")}`;
 }
 
 function formatFactsDiff(changes: FactChange[] | undefined): string {

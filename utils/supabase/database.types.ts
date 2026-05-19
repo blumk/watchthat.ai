@@ -83,6 +83,10 @@ export type Database = {
           // (24h); floor is 3600s. Page-level cadence is min() of all
           // watchers' intervals, maintained by triggers.
           refresh_interval_seconds: number;
+          // Free-form user notes refining what to track. Passed to
+          // describeChange on every scrape so users can teach the model
+          // what to look for / ignore on noisy pages.
+          target_notes: string | null;
         };
         Insert: {
           id?: string;
@@ -91,6 +95,7 @@ export type Database = {
           created_at?: string;
           watch_target?: string | null;
           refresh_interval_seconds?: number;
+          target_notes?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["watches"]["Insert"]>;
         Relationships: [];

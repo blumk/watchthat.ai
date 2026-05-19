@@ -341,6 +341,65 @@ describe("POST /api/scrape", () => {
     expect(arg.watchTargets).toHaveLength(2); // de-duped, null dropped
   });
 
+  it("forwards each watcher's target_notes refinement to describeChange (deduped)", async () => {
+    await POST(makeRequest({ url: "https://example.com" }));
+    const pageId = state.pages[0].id;
+    state.watches.push(
+      {
+        id: "w-1",
+        user_id: "u-1",
+        page_id: pageId,
+        watch_target: "GA price",
+        target_notes:
+          "Look for $ value right under '### General Admission'. Ignore JSON-LD lowPrice.",
+        refresh_interval_seconds: 86400,
+        created_at: Date.now(),
+      },
+      {
+        id: "w-2",
+        user_id: "u-2",
+        page_id: pageId,
+        watch_target: "GA price",
+        target_notes:
+          "Look for $ value right under '### General Admission'. Ignore JSON-LD lowPrice.", // dup
+        refresh_interval_seconds: 86400,
+        created_at: Date.now(),
+      },
+      {
+        id: "w-3",
+        user_id: "u-3",
+        page_id: pageId,
+        watch_target: "VIP price",
+        target_notes: "Price next to '### VIP'",
+        refresh_interval_seconds: 86400,
+        created_at: Date.now(),
+      },
+      {
+        id: "w-4",
+        user_id: "u-4",
+        page_id: pageId,
+        watch_target: null,
+        target_notes: null, // null — should be filtered out
+        refresh_interval_seconds: 86400,
+        created_at: Date.now(),
+      },
+    );
+
+    state.pages[0].last_fetched_at = new Date(Date.now() - 600_000).toISOString();
+    mockFirecrawl("# Updated event");
+    await POST(makeRequest({ url: "https://example.com" }));
+
+    expect(mockDescribeChange).toHaveBeenCalledTimes(1);
+    const arg = mockDescribeChange.mock.calls[0][0];
+    expect(arg.userNotes).toEqual(
+      expect.arrayContaining([
+        "Look for $ value right under '### General Admission'. Ignore JSON-LD lowPrice.",
+        "Price next to '### VIP'",
+      ]),
+    );
+    expect(arg.userNotes).toHaveLength(2);
+  });
+
   it("drops fact-diff entries that don't resolve from any user watch target", async () => {
     // First scrape seeds the page with JSON-LD pricing. The user is
     // watching for "General Admission ticket price" — which has no

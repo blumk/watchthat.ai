@@ -142,6 +142,10 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [editingCard, setEditingCard] = useState<string | null>(null);
   const [editUrl, setEditUrl] = useState("");
+  // Buffered edit-mode value for the target-notes textarea. Persisted on
+  // blur via handleNotesBlur — saving on every keystroke would round-trip
+  // to Supabase per character.
+  const [editNotes, setEditNotes] = useState("");
   const [downloading, setDownloading] = useState<string | null>(null);
   // Site id whose share URL was just copied — shows brief "Copied!" feedback.
   const [shared, setShared] = useState<string | null>(null);
@@ -414,6 +418,16 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
   function openEdit(site: WatchedSite) {
     setEditingCard(site.id);
     setEditUrl(site.url);
+    setEditNotes(site.targetNotes ?? "");
+  }
+
+  function handleNotesBlur(site: WatchedSite) {
+    const trimmed = editNotes.trim();
+    const next = trimmed || null;
+    if (next === site.targetNotes) return;
+    const patch: Partial<WatchedSite> = { targetNotes: next };
+    void updateSite(site.id, patch);
+    onUpdate(site.id, patch);
   }
 
   function handleIntervalChange(site: WatchedSite, seconds: number) {
@@ -741,6 +755,20 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                             Save
                           </button>
                         </div>
+                        <label className="block mb-2">
+                          <span className="text-[10px] font-mono text-[var(--t3)] block mb-1">
+                            Notes for the AI (saved on blur)
+                          </span>
+                          <textarea
+                            value={editNotes}
+                            onChange={e => setEditNotes(e.target.value)}
+                            onBlur={() => handleNotesBlur(site)}
+                            rows={2}
+                            placeholder="e.g. The price right under '### General Admission'. Currently around $479. Ignore JSON-LD aggregate prices."
+                            aria-label="Refinement notes for the AI"
+                            className="w-full bg-[var(--bg)] border border-[var(--bdr)] focus:border-[var(--blue)] rounded-lg px-2 py-1 text-xs font-mono text-[var(--t1)] placeholder-[var(--t3)] outline-none transition-colors resize-none"
+                          />
+                        </label>
                         <div className="flex justify-between">
                           <button
                             onClick={() => setEditingCard(null)}

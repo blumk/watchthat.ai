@@ -56,6 +56,11 @@ export interface WatchedSite {
   error: string | null;
   history: ChangeEntry[];
   watchTarget: string | null;
+  // Free-form user notes refining what to track ("the GA price labeled
+  // '### General Admission' in the listings table; ignore JSON-LD floor
+  // prices"). Surfaced to describeChange on every scrape so the model
+  // gets per-page user guidance that survives across runs.
+  targetNotes: string | null;
   refreshInterval: number | null;
   // When the background cron is next due to scrape this page (epoch ms).
   // Maintained server-side by triggers; surfaced here so cards can render
@@ -87,6 +92,7 @@ function emptySite(overrides: Partial<WatchedSite>): WatchedSite {
     error: null,
     history: [],
     watchTarget: null,
+    targetNotes: null,
     refreshInterval: null,
     nextDueAt: null,
     trackedFact: null,
@@ -130,6 +136,7 @@ export function _setSessionForTests(
 type WatchRow = {
   id: string;
   watch_target: string | null;
+  target_notes: string | null;
   refresh_interval_seconds: number;
   pages: {
     id: string;
@@ -149,6 +156,7 @@ function rowToSite(row: WatchRow): WatchedSite | null {
     url: row.pages.url,
     label: row.pages.label,
     watchTarget: row.watch_target,
+    targetNotes: row.target_notes,
     refreshInterval: row.refresh_interval_seconds,
     nextDueAt: row.pages.next_due_at
       ? new Date(row.pages.next_due_at).getTime()
@@ -201,7 +209,7 @@ export async function getSites(): Promise<WatchedSite[]> {
   const { data, error } = await client
     .from("watches")
     .select(
-      "id, watch_target, refresh_interval_seconds, pages(id, url, label, latest_snapshot_id, last_fetched_at, next_due_at)",
+      "id, watch_target, target_notes, refresh_interval_seconds, pages(id, url, label, latest_snapshot_id, last_fetched_at, next_due_at)",
     )
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });
@@ -353,6 +361,10 @@ export async function updateSite(
   // Only watch-scoped columns persist. Everything else lives in React state.
   const dbPatch: Database["public"]["Tables"]["watches"]["Update"] = {};
   if ("watchTarget" in patch) dbPatch.watch_target = patch.watchTarget ?? null;
+  if ("targetNotes" in patch) {
+    const trimmed = patch.targetNotes?.trim();
+    dbPatch.target_notes = trimmed ? trimmed : null;
+  }
   if (
     "refreshInterval" in patch &&
     typeof patch.refreshInterval === "number" &&

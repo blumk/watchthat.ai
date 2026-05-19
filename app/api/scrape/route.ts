@@ -171,12 +171,13 @@ export async function POST(request: Request) {
       const factsDiff = prevHadFacts
         ? diffFacts(prev.facts as FactBag, facts)
         : [];
-      // Pull distinct user-specified watch targets for this page. When users
-      // asked us to track a specific property ("price of the Pro plan",
-      // "app rating"), Claude needs to know — otherwise a $40 price move
-      // buried in a noisy markdown diff gets summarised as "nothing
-      // significant changed."
-      const watchTargets = await loadWatchTargets(svc, page.id);
+      // Pull distinct user-specified watch targets + free-form notes for
+      // this page. When users asked us to track a specific property ("price
+      // of the Pro plan", "app rating"), Claude needs to know — otherwise
+      // a buried numeric move in a noisy diff gets summarised as "nothing
+      // changed." Notes are authoritative guidance the user added after
+      // the AI got things wrong without them.
+      const { watchTargets, userNotes } = await loadWatchHints(svc, page.id);
       // Filter the fact diff to only the keys the user's watch targets
       // actually resolve to. Otherwise the prompt's "trust structured data
       // over prose" instruction makes Claude faithfully report e.g.
@@ -194,6 +195,7 @@ export async function POST(request: Request) {
           newValue: markdown,
           watchTarget: "page content",
           watchTargets,
+          userNotes,
           url,
           factsDiff: relevantFactsDiff,
         });
@@ -329,22 +331,32 @@ function filterFactsDiffByTargets(
   return factsDiff.filter((c) => relevant.has(c.key));
 }
 
-// Distinct non-null watch targets across every user watching this page —
-// passed to describeChange so the prompt can focus on what users actually
-// asked us to monitor instead of describing the diff generically.
-async function loadWatchTargets(svc: Svc, pageId: string): Promise<string[]> {
+// Distinct non-null watch_target strings + target_notes refinements across
+// every user watching this page. Both feed describeChange — targets focus
+// the description; notes are authoritative guidance the user added after
+// the AI got the page wrong without them.
+async function loadWatchHints(
+  svc: Svc,
+  pageId: string,
+): Promise<{ watchTargets: string[]; userNotes: string[] }> {
   const { data } = await svc
     .from("watches")
-    .select("watch_target")
+    .select("watch_target, target_notes")
     .eq("page_id", pageId);
-  const rows = (data ?? []) as Array<{ watch_target: string | null }>;
-  return Array.from(
-    new Set(
-      rows
-        .map((r) => r.watch_target?.trim())
-        .filter((t): t is string => !!t),
-    ),
-  );
+  const rows = (data ?? []) as Array<{
+    watch_target: string | null;
+    target_notes: string | null;
+  }>;
+  const dedup = (vals: Array<string | null | undefined>): string[] =>
+    Array.from(
+      new Set(
+        vals.map((v) => v?.trim()).filter((v): v is string => !!v),
+      ),
+    );
+  return {
+    watchTargets: dedup(rows.map((r) => r.watch_target)),
+    userNotes: dedup(rows.map((r) => r.target_notes)),
+  };
 }
 
 // Fallback markdown resolver for hash-equal re-inserts. We store
