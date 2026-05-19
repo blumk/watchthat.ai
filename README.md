@@ -37,6 +37,7 @@ Copy `.env.example` to `.env.local` and fill in:
 | `NEXT_PUBLIC_SUPABASE_URL` | `supabase start` prints it (local: `http://127.0.0.1:54321`) |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `supabase start` prints it (client-safe) |
 | `SUPABASE_SECRET_KEY` | `supabase start` prints it (server-only, bypasses RLS — do NOT commit) |
+| `CRON_SECRET` | Random string used to authenticate `/api/cron/scrape` calls from Supabase pg_cron. Must match the `cron_secret` entry in Supabase Vault. Generate with `openssl rand -hex 32`. |
 
 `.env.local` is git-ignored. For production, set these in Vercel → Project Settings → Environment Variables using your cloud values instead.
 
@@ -134,7 +135,9 @@ Connect the GitHub repo in the Vercel dashboard or run:
 npx vercel
 ```
 
-Set these env vars in **Project Settings → Environment Variables** (Production): `FIRECRAWL_API_KEY`, `ANTHROPIC_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` — using your **cloud** Supabase values, not the local ones. Also set `SENTRY_AUTH_TOKEN` (from [sentry.io/settings/auth-tokens](https://sentry.io/settings/auth-tokens/), `project:releases` + `org:read` scopes) so production builds upload source maps.
+Set these env vars in **Project Settings → Environment Variables** (Production): `FIRECRAWL_API_KEY`, `ANTHROPIC_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` — using your **cloud** Supabase values, not the local ones. Also set:
+- `SENTRY_AUTH_TOKEN` (from [sentry.io/settings/auth-tokens](https://sentry.io/settings/auth-tokens/), `project:releases` + `org:read` scopes) so production builds upload source maps.
+- `CRON_SECRET` — must match the value of the `cron_secret` entry stored in Supabase Vault (see the auto-refresh setup below). Generate with `openssl rand -hex 32`.
 
 ### Supabase (cloud)
 
@@ -147,6 +150,44 @@ supabase db push                                  # applies all migrations to cl
 ```
 
 Re-run `supabase db push` after creating a new migration. Cloud URL + keys live in **Supabase Dashboard → Project Settings → API**.
+
+### Auto-refresh (Supabase pg_cron)
+
+Watched pages are re-scraped in the background on each user's chosen interval (default 24h, floor 1h). The scheduler is a Supabase pg_cron job that fires HTTP POSTs at `/api/cron/scrape`; that route delegates to `/api/scrape` so the existing hash / fact-extract / describe-change pipeline handles every refresh identically to a manual ↻ click.
+
+**One-time setup after the first `supabase db push`:**
+
+1. Generate a secret and store it in Supabase Vault (SQL editor):
+   ```sql
+   select vault.create_secret('<openssl rand -hex 32 output>', 'cron_secret');
+   select vault.create_secret('https://<your-prod-host>',      'cron_base_url');
+   ```
+   > `vault.create_secret(value, name)` — values are encrypted at rest. To rotate later: `select vault.update_secret(id, new_value, name)` where `id` comes from `select id from vault.secrets where name = 'cron_secret'`.
+2. Set `CRON_SECRET` in Vercel → Environment Variables to the **same** value as the `cron_secret` Vault entry.
+
+Until both Vault entries exist, the cron function logs a warning and no-ops on every tick — safe to apply the migration before populating Vault.
+
+**How it works:**
+- `watches.refresh_interval_seconds` — per-user choice (default 86400). DB CHECK constraint enforces a 1h floor.
+- `pages.next_due_at` — when the cron should next scrape this page, maintained by triggers on `snapshots` (insert) and `watches` (insert/update/delete). NULL when the page has no active watchers.
+- pg_cron job `refresh-due-pages` runs every 5 minutes. It picks up to 25 due pages (`next_due_at <= now()`), claims each by pushing `next_due_at` forward 10 min (built-in retry window), and fires `pg_net.http_post` to `${cron_base_url}/api/cron/scrape` with `Authorization: Bearer ${cron_secret}`.
+- The Vercel route validates the bearer against `CRON_SECRET`, looks up the page's URL, and calls `/api/scrape` internally. The snapshot-insert trigger then writes a fresh `next_due_at` based on `min(refresh_interval_seconds)` across watchers.
+
+**Useful diagnostic queries (Supabase SQL editor):**
+
+```sql
+-- Recent cron runs (one row per 5-minute tick)
+select jobname, start_time, end_time, status from cron.job_run_details
+order by start_time desc limit 10;
+
+-- Recent HTTP POSTs to /api/cron/scrape
+select id, status_code, content, created from net._http_response
+order by created desc limit 10;
+
+-- Pages currently overdue
+select id, url, next_due_at from pages
+where next_due_at <= now() order by next_due_at limit 20;
+```
 
 ## License
 
