@@ -16,6 +16,18 @@ export async function POST(req: Request) {
   const expected = process.env.CRON_SECRET;
   const auth = req.headers.get("authorization");
   if (!expected || auth !== `Bearer ${expected}`) {
+    // Diagnostic — secret-free. Logs length / last-4 only so future 401s
+    // are debuggable without re-deploying instrumentation.
+    const received = auth?.startsWith("Bearer ") ? auth.slice("Bearer ".length) : auth;
+    console.error("[cron-scrape] 401", {
+      hasExpectedEnvVar: Boolean(expected),
+      expectedLen: expected?.length ?? 0,
+      hasAuthHeader: Boolean(auth),
+      authStartsWithBearer: auth?.startsWith("Bearer ") ?? false,
+      receivedTokenLen: received?.length ?? 0,
+      expectedTail: expected?.slice(-4) ?? null,
+      receivedTail: received?.slice(-4) ?? null,
+    });
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
