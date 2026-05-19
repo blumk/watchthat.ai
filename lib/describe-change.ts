@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import * as Sentry from "@sentry/nextjs";
 import type { FactChange } from "@/lib/facts";
+import { parseJsonResponse } from "@/lib/parse-json-response";
 
 export interface DescribeChangeInput {
   oldValue: string;
@@ -99,22 +100,19 @@ export async function describeChange({
   let emoji: string | undefined;
   const raw =
     message.content[0]?.type === "text" ? message.content[0].text.trim() : "";
-  const text = raw
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/, "")
-    .trim();
-  try {
-    const parsed = JSON.parse(text) as {
-      description?: string;
-      classification?: string;
-      emoji?: string;
-    };
+  const parsed = parseJsonResponse<{
+    description?: string;
+    classification?: string;
+    emoji?: string;
+  }>(raw);
+  if (parsed) {
     if (typeof parsed.description === "string") description = parsed.description;
     if (parsed.classification === "major") classification = "major";
     if (typeof parsed.emoji === "string") emoji = parsed.emoji.trim();
-  } catch {
-    if (text) description = text;
   }
+  // If parseJsonResponse returned null the description stays at the default
+  // "The monitored value changed." — never leak a raw model dump (including
+  // its commentary / fences / notes) into the change log.
   return { description, classification, emoji };
 }
 

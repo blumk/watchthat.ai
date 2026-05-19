@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import * as Sentry from "@sentry/nextjs";
+import { parseJsonResponse } from "@/lib/parse-json-response";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
@@ -31,18 +32,14 @@ export async function POST(request: Request) {
 
     const raw =
       message.content[0]?.type === "text" ? message.content[0].text.trim() : "";
-    const text = raw
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/, "")
-      .trim();
-    const parsed = JSON.parse(text) as {
+    const parsed = parseJsonResponse<{
       siteType?: string;
       options?: Array<{ label: string; watchTarget: string }>;
-    };
+    }>(raw);
 
     return NextResponse.json({
-      siteType: typeof parsed.siteType === "string" ? parsed.siteType : "Website",
-      options: Array.isArray(parsed.options) ? parsed.options.slice(0, 3) : [],
+      siteType: typeof parsed?.siteType === "string" ? parsed.siteType : "Website",
+      options: Array.isArray(parsed?.options) ? parsed.options.slice(0, 3) : [],
     });
   } catch (err) {
     console.error("[analyze] error", err);
