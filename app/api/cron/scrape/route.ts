@@ -16,10 +16,12 @@ export async function POST(req: Request) {
   const expected = process.env.CRON_SECRET;
   const auth = req.headers.get("authorization");
   if (!expected || auth !== `Bearer ${expected}`) {
-    // Diagnostic — secret-free. Logs length / last-4 only so future 401s
-    // are debuggable without re-deploying instrumentation.
+    // Diagnostic in the response body so the caller (pg_net) stores it on
+    // net._http_response.content — readable via SQL even when Vercel logs
+    // get dropped. Secret-free: lengths + last-4 tails only.
     const received = auth?.startsWith("Bearer ") ? auth.slice("Bearer ".length) : auth;
-    console.error("[cron-scrape] 401", {
+    const diag = {
+      error: "unauthorized",
       hasExpectedEnvVar: Boolean(expected),
       expectedLen: expected?.length ?? 0,
       hasAuthHeader: Boolean(auth),
@@ -27,8 +29,9 @@ export async function POST(req: Request) {
       receivedTokenLen: received?.length ?? 0,
       expectedTail: expected?.slice(-4) ?? null,
       receivedTail: received?.slice(-4) ?? null,
-    });
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    };
+    console.error("[cron-scrape] 401", diag);
+    return NextResponse.json(diag, { status: 401 });
   }
 
   let body: { pageId?: string };
