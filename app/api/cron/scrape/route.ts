@@ -61,7 +61,12 @@ export async function POST(req: Request) {
   const baseUrl = inferBaseUrl(req);
   const scrapeRes = await fetch(`${baseUrl}/api/scrape`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      // /api/scrape reads this to set a Sentry tag (scrape.source = "cron")
+      // so AI calls produced by background polling are filterable.
+      "x-source": "cron",
+    },
     body: JSON.stringify({ url: page.url }),
   });
   const scrapeJson = (await scrapeRes

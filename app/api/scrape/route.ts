@@ -27,6 +27,7 @@
 
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
+import * as Sentry from "@sentry/nextjs";
 import { createServiceClient } from "@/utils/supabase/service";
 import { normalizeUrl, extractLabel } from "@/lib/url";
 import { sha256Hex } from "@/lib/sha256";
@@ -42,6 +43,16 @@ const SCREENSHOTS_BUCKET = "screenshots";
 type Svc = ReturnType<typeof createServiceClient>;
 
 export async function POST(request: Request) {
+  // Tag the trace with the route + caller source so a bad describe-change
+  // entry can be tracked back to its Sentry trace by filtering on these
+  // tags. Cron-driven scrapes pass an x-source header; everything else is
+  // a manual user-triggered fetch.
+  Sentry.setTag("route", "scrape");
+  Sentry.setTag(
+    "scrape.source",
+    request.headers.get("x-source") === "cron" ? "cron" : "manual",
+  );
+
   const body = await request.json().catch(() => ({}));
   const { url: rawUrl, force } = body as { url?: string; force?: boolean };
 
@@ -188,6 +199,16 @@ export async function POST(request: Request) {
         watchTargets,
         facts,
       );
+      // Pin the Claude-call business context onto the active trace so the
+      // resulting AI span is filterable in Sentry by pageId / how many user
+      // hints went in / etc. Tags are scope-wide and inherited by every
+      // span beneath this point.
+      Sentry.setTag("scrape.pageId", page.id);
+      Sentry.setTag("scrape.hashChanged", "true");
+      Sentry.setTag("scrape.watchTargetsCount", String(watchTargets.length));
+      Sentry.setTag("scrape.userNotesCount", String(userNotes.length));
+      Sentry.setTag("scrape.factsDiffSize", String(relevantFactsDiff.length));
+      Sentry.setTag("scrape.markdownChanged", String(markdownChanged));
       try {
         const desc = await describeChange({
           oldValue: prevMarkdown,
@@ -201,10 +222,13 @@ export async function POST(request: Request) {
         description = desc.description;
         classification = desc.classification;
         emoji = desc.emoji ?? null;
+        Sentry.setTag("scrape.classification", classification);
+        Sentry.setTag("scrape.descriptionLength", String(description.length));
       } catch (err) {
         console.error("[scrape] describe-change failed", err);
         description = "Page content changed.";
         classification = "minor";
+        Sentry.setTag("scrape.classification", "minor-fallback");
       }
     }
   }
@@ -231,6 +255,9 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+  // Tag with the snapshot id once we have it — closes the loop so a bad
+  // entry in the UI (which knows the snapshot id) can be Sentry-searched.
+  Sentry.setTag("scrape.snapshotId", snapshot.id);
 
   await svc
     .from("pages")

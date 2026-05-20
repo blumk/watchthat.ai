@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { parseJsonResponse } from "@/lib/parse-json-response";
 import { createAnthropicClient } from "@/lib/anthropic";
 
 export async function POST(request: Request) {
+  Sentry.setTag("route", "analyze");
   const body = await request.json().catch(() => ({}));
   const { markdown } = body as { markdown?: string };
 
@@ -12,6 +14,7 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  Sentry.setTag("analyze.markdownLen", String(markdown.length));
 
   try {
     const client = createAnthropicClient();
