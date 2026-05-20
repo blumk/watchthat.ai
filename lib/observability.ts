@@ -86,6 +86,15 @@ let cachedClient: Langfuse | null | undefined;
 
 function getClient(): Langfuse | null {
   if (cachedClient !== undefined) return cachedClient;
+  // Never load Langfuse in tests. Jest's CJS runner can't service the
+  // dynamic import the SDK fires at module-init for optional media
+  // support, and CI builds inherit prod LANGFUSE_* env vars through
+  // Vercel — so any test that exercises a route calling recordScore /
+  // startTrace would crash the build without this guard.
+  if (process.env.NODE_ENV === "test") {
+    cachedClient = null;
+    return null;
+  }
   const publicKey = process.env.LANGFUSE_PUBLIC_KEY;
   const secretKey = process.env.LANGFUSE_SECRET_KEY;
   if (!publicKey || !secretKey) {
