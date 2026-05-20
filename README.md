@@ -39,7 +39,7 @@ Copy `.env.example` to `.env.local` and fill in:
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `supabase start` prints it (client-safe) |
 | `SUPABASE_SECRET_KEY` | `supabase start` prints it (server-only, bypasses RLS — do NOT commit) |
 | `CRON_SECRET` | Random string used to authenticate `/api/cron/scrape` calls from Supabase pg_cron. Must match the `cron_secret` entry in Supabase Vault. Generate with `openssl rand -hex 32`. |
-| `NEXT_PUBLIC_APP_URL` | Public base URL for canonical share links (`/p/<id>`). Used in OG metadata so WhatsApp / iMessage / Slack render correct unfurl previews. Defaults to `https://watchthat.ai` if unset. |
+| `NEXT_PUBLIC_APP_URL` | *Optional.* Override for the canonical share-link base URL used in OG metadata. Auto-detected from Vercel envs (`VERCEL_URL` on preview deploys, `VERCEL_PROJECT_PRODUCTION_URL` on prod), so you typically don't need to set this. Only useful when a custom proxy sits in front of Vercel. |
 
 `.env.local` is git-ignored. For production, set these in Vercel → Project Settings → Environment Variables using your cloud values instead.
 

@@ -11,10 +11,28 @@ export const dynamic = "force-dynamic";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Public base URL for canonical og:url values. Falls back to the prod
-// hostname if the env var isn't configured (dev / preview deploys).
-const PUBLIC_BASE_URL =
-  process.env.NEXT_PUBLIC_APP_URL ?? "https://watchthat.ai";
+// Resolve the public base URL used to build canonical og:url values per
+// runtime. Order:
+//   1. NEXT_PUBLIC_APP_URL — explicit override (rarely needed).
+//   2. Preview / dev Vercel deploys: VERCEL_URL points to this specific
+//      deployment, so a preview's unfurl preview correctly references its
+//      own URL instead of claiming prod's canonical.
+//   3. Production Vercel deploy: VERCEL_PROJECT_PRODUCTION_URL is the
+//      project's canonical domain (custom domain if configured).
+//   4. Last resort: hardcoded prod hostname for local dev / non-Vercel runs.
+function getPublicBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "");
+  }
+  const vercelEnv = process.env.VERCEL_ENV;
+  if (vercelEnv && vercelEnv !== "production" && process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+  return "https://watchthat.ai";
+}
 
 // Default metadata used for 404 / malformed-id paths. Keeps share links
 // out of search engines regardless of whether they resolve.
@@ -76,7 +94,7 @@ export async function generateMetadata({
   const ogImage = newestWithScreenshot?.screenshot_path
     ? snapshotPublicUrl(newestWithScreenshot.screenshot_path)
     : null;
-  const canonicalUrl = `${PUBLIC_BASE_URL.replace(/\/+$/, "")}/p/${id}`;
+  const canonicalUrl = `${getPublicBaseUrl()}/p/${id}`;
 
   return {
     robots: { index: false, follow: false },
