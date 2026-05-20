@@ -36,6 +36,7 @@ import { decorateSnapshot, type SnapshotRow } from "@/lib/snapshot";
 import { extractFacts, diffFacts, factsBlob, type FactBag, type FactChange } from "@/lib/facts";
 import { matchTargetToFact } from "@/lib/watch-target-match";
 import { runFirecrawl, FIRECRAWL_TIMEOUT_MS } from "@/lib/firecrawl";
+import { scheduleFlush } from "@/lib/observability";
 
 const DEDUP_WINDOW_MS = 300_000; // 5 minutes
 const SCREENSHOTS_BUCKET = "screenshots";
@@ -52,6 +53,9 @@ export async function POST(request: Request) {
     "scrape.source",
     request.headers.get("x-source") === "cron" ? "cron" : "manual",
   );
+  // Drain Langfuse's in-memory buffer after the response is sent. No-ops
+  // when Langfuse is disabled; doesn't add latency to the response.
+  scheduleFlush();
 
   const body = await request.json().catch(() => ({}));
   const { url: rawUrl, force } = body as { url?: string; force?: boolean };
@@ -158,6 +162,11 @@ export async function POST(request: Request) {
   let description: string | null = null;
   let classification: "major" | "minor" | "quiet" = "quiet";
   let emoji: string | null = null;
+  // Pre-allocate the snapshot id so the Langfuse trace id (created inside
+  // describeChange) matches the row we insert below. Lets user-feedback
+  // scores collected later on the same snapshot.id attach to the same
+  // trace, no separate column needed.
+  const snapshotId = randomUUID();
   if (prev && hashChanged) {
     // prev.markdown is NULL whenever the previous snapshot was itself a
     // hash-equal re-insert. Resolve it via the earliest row carrying the same
@@ -218,6 +227,14 @@ export async function POST(request: Request) {
           userNotes,
           url,
           factsDiff: relevantFactsDiff,
+          telemetry: {
+            correlationId: snapshotId,
+            extraMetadata: {
+              pageId: page.id,
+              source: request.headers.get("x-source") === "cron" ? "cron" : "manual",
+              markdownChanged,
+            },
+          },
         });
         description = desc.description;
         classification = desc.classification;
@@ -236,6 +253,9 @@ export async function POST(request: Request) {
   const { data: snapshot, error: snapErr } = await svc
     .from("snapshots")
     .insert({
+      // Pre-allocated id (matches Langfuse trace id) so user feedback
+      // recorded later on snapshot.id attaches to the right trace.
+      id: snapshotId,
       page_id: page.id,
       content_hash: contentHash,
       // Skip re-storing identical markdown on hash-equal re-fetches.

@@ -1,6 +1,7 @@
 import type { FactChange } from "@/lib/facts";
 import { parseJsonResponse } from "@/lib/parse-json-response";
 import { createAnthropicClient } from "@/lib/anthropic";
+import { startTrace } from "@/lib/observability";
 
 export interface DescribeChangeInput {
   oldValue: string;
@@ -23,6 +24,16 @@ export interface DescribeChangeInput {
   // often rounds ("1.2k ratings") while the fact bag carries the real
   // numbers ("1217").
   factsDiff?: FactChange[];
+  // Observability context. When set, the LLM call is wrapped in a trace so
+  // user feedback later (swipe-dismiss, etc.) can be attached to the same
+  // trace id. correlationId is the snapshot id we're about to persist —
+  // using snapshot.id as the trace.id closes the UI ↔ telemetry loop
+  // without needing a separate column.
+  telemetry?: {
+    correlationId?: string;
+    userId?: string;
+    extraMetadata?: Record<string, unknown>;
+  };
 }
 
 export interface DescribeChangeResult {
@@ -42,6 +53,7 @@ export async function describeChange({
   userNotes,
   url,
   factsDiff,
+  telemetry,
 }: DescribeChangeInput): Promise<DescribeChangeResult> {
   const client = createAnthropicClient();
 
@@ -85,8 +97,34 @@ export async function describeChange({
     }, otherwise "minor"\n` +
     `- "emoji": one emoji that best captures the sentiment or nature of the change, e.g. 📈 improving/growing, 📉 declining/worsening, 💰 price change, 🚀 launch/release, 🛠️ maintenance/fix, ⚠️ warning/issue, 🎉 good news, 👤 people/personnel, 🔒 security, 📅 date/deadline`;
 
+  const MODEL = "claude-haiku-4-5-20251001";
+  // Open a Langfuse trace (no-ops if env vars absent). Using the caller's
+  // correlationId — which the scrape route passes as the future snapshot.id
+  // — means user-feedback scores collected via /api/snapshots/hide can be
+  // attached to the same trace without a separate id mapping.
+  const trace = startTrace({
+    id: telemetry?.correlationId,
+    name: "describeChange",
+    userId: telemetry?.userId,
+    metadata: {
+      url,
+      hasUserNotes,
+      hasSpecificTargets,
+      hasFacts: Boolean(factsBlock),
+      watchTargetsCount: watchTargets?.length ?? 0,
+      userNotesCount: userNotes?.length ?? 0,
+      factsDiffSize: factsDiff?.length ?? 0,
+      ...(telemetry?.extraMetadata ?? {}),
+    },
+  });
+  const generation = trace.generation({
+    name: "describe-change-call",
+    model: MODEL,
+    input: content,
+  });
+
   const message = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
+    model: MODEL,
     max_tokens: 256,
     messages: [{ role: "user", content }],
   });
@@ -96,6 +134,13 @@ export async function describeChange({
   let emoji: string | undefined;
   const raw =
     message.content[0]?.type === "text" ? message.content[0].text.trim() : "";
+  generation.end({
+    output: raw,
+    usage: {
+      input: message.usage?.input_tokens ?? 0,
+      output: message.usage?.output_tokens ?? 0,
+    },
+  });
   const parsed = parseJsonResponse<{
     description?: string;
     classification?: string;
@@ -109,6 +154,7 @@ export async function describeChange({
   // If parseJsonResponse returned null the description stays at the default
   // "The monitored value changed." — never leak a raw model dump (including
   // its commentary / fences / notes) into the change log.
+  trace.end({ output: { description, classification, emoji, parseOk: Boolean(parsed) } });
   return { description, classification, emoji };
 }
 

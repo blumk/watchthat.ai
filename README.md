@@ -40,6 +40,8 @@ Copy `.env.example` to `.env.local` and fill in:
 | `SUPABASE_SECRET_KEY` | `supabase start` prints it (server-only, bypasses RLS — do NOT commit) |
 | `CRON_SECRET` | Random string used to authenticate `/api/cron/scrape` calls from Supabase pg_cron. Must match the `cron_secret` entry in Supabase Vault. Generate with `openssl rand -hex 32`. |
 | `NEXT_PUBLIC_APP_URL` | *Optional.* Override for the canonical share-link base URL used in OG metadata. Auto-detected from Vercel envs (`VERCEL_URL` on preview deploys, `VERCEL_PROJECT_PRODUCTION_URL` on prod), so you typically don't need to set this. Only useful when a custom proxy sits in front of Vercel. |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | *Optional.* Enable Langfuse LLM observability. Get keys at [cloud.langfuse.com](https://cloud.langfuse.com). When both are set, every Claude call (describe-change + analyze) is sent as a Langfuse trace with input/output/usage; swipe-dismiss in the UI records a `-1` user-dismissed score against the same trace. With either var unset, `lib/observability` no-ops and nothing leaves the server. |
+| `LANGFUSE_BASE_URL` | *Optional.* Override the Langfuse endpoint. Defaults to `https://us.cloud.langfuse.com`. Set to `https://cloud.langfuse.com` for the EU region or to your self-hosted URL. |
 
 `.env.local` is git-ignored. For production, set these in Vercel → Project Settings → Environment Variables using your cloud values instead.
 

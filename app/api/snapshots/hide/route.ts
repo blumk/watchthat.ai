@@ -10,6 +10,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/utils/supabase/service";
 import { resolveUserFromAuthHeader } from "@/lib/auth";
+import { recordScore, scheduleFlush } from "@/lib/observability";
 
 export async function POST(req: Request) {
   let body: { snapshotId?: string };
@@ -68,5 +69,16 @@ export async function POST(req: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  // User-feedback signal: the snapshot's describe-change output was bad
+  // enough that they dismissed it. snapshot.id IS the Langfuse trace id
+  // (set when the trace was opened in describeChange), so the score
+  // attaches to the same trace.
+  recordScore({
+    traceId: snapshotId,
+    name: "user-dismissed",
+    value: -1,
+    comment: "User dismissed this change-log entry via swipe / × button.",
+  });
+  scheduleFlush();
   return NextResponse.json({ ok: true });
 }
