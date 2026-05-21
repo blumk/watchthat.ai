@@ -45,13 +45,21 @@ jobs:
 
       - name: Resolve target URL
         id: target
+        # Prefer the configured canonical alias (vars.E2E_PROD_URL) over
+        # deployment_status.target_url — Vercel's per-deployment hosts are
+        # gated by Deployment Protection and serve a 401 "Login – Vercel"
+        # page to anonymous CI requests. The public alias is the only host
+        # that survives anonymous traffic.
         run: |
           if [ -n "${{ inputs.base_url }}" ]; then
             echo "url=${{ inputs.base_url }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ vars.E2E_PROD_URL }}" ]; then
+            echo "url=${{ vars.E2E_PROD_URL }}" >> "$GITHUB_OUTPUT"
           elif [ -n "${{ github.event.deployment_status.target_url }}" ]; then
             echo "url=${{ github.event.deployment_status.target_url }}" >> "$GITHUB_OUTPUT"
           else
-            echo "url=${{ secrets.E2E_PROD_URL }}" >> "$GITHUB_OUTPUT"
+            echo "no target URL — set repo variable E2E_PROD_URL" >&2
+            exit 1
           fi
 
       - name: Warmup
@@ -59,7 +67,7 @@ jobs:
           set -e
           for path in / /developers; do
             echo "warmup ${{ steps.target.outputs.url }}$path"
-            curl -fsS -o /dev/null -w "%{http_code} %{url_effective}\n" \
+            curl -fsSL -o /dev/null -w "%{http_code} %{url_effective}\n" \
               "${{ steps.target.outputs.url }}$path" || true
           done
 
