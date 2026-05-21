@@ -94,6 +94,42 @@ export default function Home() {
     window.history.replaceState(null, "", cleaned.pathname + cleaned.search + cleaned.hash);
   }, []);
 
+  useEffect(() => {
+    // Background poll: re-fetch the watch list every minute (while the tab
+    // is visible) so cron-driven snapshots / new history entries appear
+    // without a manual reload. commitSites atomically swaps state — React
+    // diffs the result so unchanged cards don't visibly re-render.
+    //
+    // visibilitychange also triggers an immediate poll on tab focus, which
+    // covers the "I switched back after an hour, want fresh data now" case
+    // without waiting the next interval tick.
+    const POLL_INTERVAL_MS = 60_000;
+
+    function refresh() {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      getSites()
+        .then((loaded) => commitSites(loaded))
+        .catch(() => {
+          // Silent — transient network errors shouldn't blow up the page.
+        });
+    }
+
+    function onVisibility() {
+      if (document.visibilityState === "visible") refresh();
+    }
+
+    const timer = setInterval(refresh, POLL_INTERVAL_MS);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+    // commitSites is a closure over the same setSites; we don't want it as
+    // a dependency or the interval would tear down and restart every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function handleSetup(url: string) {
     const normalizedHttp = url.match(/^https?:\/\//) ? url : `https://${url}`;
     let canonicalUrl: string;
