@@ -1,0 +1,57 @@
+name: prompt evals
+
+# Run promptfoo against lib/describe-change whenever a PR touches the
+# prompt itself or the eval suite. Skips otherwise — keeps Anthropic
+# spend bounded to PRs that could actually move the needle.
+on:
+  pull_request:
+    paths:
+      - "lib/describe-change.ts"
+      - "lib/parse-json-response.ts"
+      - "lib/facts.ts"
+      - "lib/watch-target-match.ts"
+      - "evals/**"
+      - ".github/workflows/prompt-evals.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: prompt-evals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Run promptfoo eval
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        # `--no-cache` ensures we re-evaluate every case even if the
+        # input hash matches a cached run — the whole point is to catch
+        # regressions from a prompt change.
+        run: pnpm exec promptfoo eval -c evals/promptfooconfig.yaml --no-cache
+
+      - name: Upload eval results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: promptfoo-results
+          path: |
+            .promptfoo
+            promptfoo-output.json
+          retention-days: 14
+          if-no-files-found: ignore

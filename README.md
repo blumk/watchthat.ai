@@ -71,6 +71,8 @@ Migrations live in `supabase/migrations/`. Create a new one with `supabase migra
 | `pnpm e2e:install` | Download Playwright's Chromium (one-time) |
 | `pnpm e2e:smoke` | Run smoke specs against local dev server |
 | `pnpm e2e:full` | Run full specs against local dev server |
+| `pnpm eval` | Run the `lib/describe-change` prompt eval suite (promptfoo). Uses `ANTHROPIC_API_KEY` from `.env.local`. |
+| `pnpm eval:view` | Open the promptfoo result viewer in a browser |
 
 > `pnpm build` runs `jest --ci` first via `prebuild`. A failing test blocks the build.
 >
@@ -112,6 +114,19 @@ E2E_BASE_URL=https://your-preview.vercel.app pnpm exec playwright test --grep @s
 ```
 
 See `e2e/README.md` for the full layout and `plans/` for the phased migration plan.
+
+## Prompt evals (promptfoo)
+
+Regression suite for `lib/describe-change` lives in `evals/`. Each test case feeds inputs into the real production function (via a custom provider that requires `lib/describe-change` directly), then asserts on the parsed result — so it exercises prompt construction + Claude's response + our JSON parser as one unit.
+
+```bash
+pnpm eval          # runs locally, ~$0.02/run via Anthropic
+pnpm eval:view     # opens the promptfoo result viewer
+```
+
+CI runs the same suite via `.github/workflows/prompt-evals.yml`, path-filtered to PRs that touch `lib/describe-change.ts`, `lib/parse-json-response.ts`, the fact extractor, the matcher, or `evals/**`. The workflow needs an `ANTHROPIC_API_KEY` repo secret.
+
+Adding a case = one entry in `evals/promptfooconfig.yaml`. The curation rule: every test corresponds to a real failure we've seen. See `evals/README.md`.
 
 ## Project Structure
 

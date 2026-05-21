@@ -1,0 +1,161 @@
+# Regression suite for lib/describe-change. Each case feeds inputs into
+# the real describeChange() (via providers/describe-change.js) and asserts
+# on the parsed result. Run locally with `pnpm eval`; CI runs this on PRs
+# that touch prompt-related files.
+#
+# Adding a new case: pick a real bug you fixed in prompt/code and write a
+# case that would have caught it. That's the curation rubric — every test
+# corresponds to a class of failure we've actually seen.
+
+description: "describeChange regression suite"
+
+providers:
+  - id: describe-change
+    label: "lib/describe-change"
+    config: {}
+    # CommonJS provider — runs in Node directly, no compilation step.
+    # The .js shim registers tsx/cjs so it can require the TS module.
+
+prompts:
+  # Promptfoo requires a `prompts` entry but our provider ignores it
+  # entirely (everything comes from `vars`). Placeholder so the schema
+  # validation is happy.
+  - "describeChange({{oldMarkdown}}|||{{newMarkdown}})"
+
+defaultTest:
+  options:
+    # Always re-evaluate on every run; the value of an eval is checking
+    # current behavior, not cached behavior. Override with --cache for
+    # local iteration if you want.
+    cache: false
+
+tests:
+  - description: "Returns valid JSON-shaped result with required fields"
+    vars:
+      oldMarkdown: "# Widget\n\nPrice: $99\n\nRating: 4.5"
+      newMarkdown: "# Widget\n\nPrice: $79\n\nRating: 4.5"
+      url: "https://example.com/widget"
+    assert:
+      - type: javascript
+        value: |
+          typeof output === 'object' &&
+          typeof output.description === 'string' &&
+          output.description.length > 0 &&
+          ['major', 'minor'].includes(output.classification)
+
+  - description: "Never frames a change as 'recovery' / 'restored' / 'now accessible'"
+    vars:
+      oldMarkdown: "# App page (failed to load — partial content)\n\nName: Lingo by Abbott"
+      newMarkdown: "# Lingo by Abbott\n\nRating: 4.5\nReviews: 1,217\nCategory: Health & Fitness"
+      url: "https://apps.apple.com/test"
+    assert:
+      - type: not-icontains
+        value: "recover"
+      - type: not-icontains
+        value: "restored"
+      - type: not-icontains
+        value: "now accessible"
+      - type: not-icontains
+        value: "back online"
+
+  - description: "Leads with the exact price change when watchTargets specifies price"
+    vars:
+      oldMarkdown: "# Product\n\nPrice: $440\nStock: in stock"
+      newMarkdown: "# Product\n\nPrice: $480\nStock: in stock"
+      watchTargets:
+        - "price"
+      url: "https://example.com/product"
+    assert:
+      - type: javascript
+        value: |
+          output.description.includes('440') && output.description.includes('480')
+
+  - description: "Description stays short (≤ ~30 words)"
+    vars:
+      oldMarkdown: "# Long Product Page\n\n" +
+        "Lots of body content here describing the product in detail.\n\n" +
+        "Price: $99\n\nSpecifications: many details about the item.\n\n" +
+        "Reviews: customers love this product. Rating: 4.5"
+      newMarkdown: "# Long Product Page\n\n" +
+        "Lots of body content here describing the product in detail.\n\n" +
+        "Price: $79\n\nSpecifications: many details about the item.\n\n" +
+        "Reviews: customers love this product. Rating: 4.5"
+      watchTargets:
+        - "price"
+      url: "https://example.com/product"
+    assert:
+      - type: javascript
+        value: |
+          output.description.split(/\s+/).filter(Boolean).length <= 30
+
+  - description: "User refinement notes override Claude's own interpretation"
+    vars:
+      oldMarkdown: |
+        # Event Listings
+
+        ### General Admission
+        $483 incl. fees
+
+        ### VIP
+        $1095 incl. fees
+      newMarkdown: |
+        # Event Listings
+
+        ### General Admission
+        $479 incl. fees
+
+        ### VIP
+        $1086 incl. fees
+      watchTargets:
+        - "General Admission ticket price"
+      userNotes:
+        - "The price right under '### General Admission' in the listings. Ignore VIP, Skydeck, or JSON-LD aggregate prices."
+      url: "https://example.com/event"
+    assert:
+      - type: javascript
+        value: |
+          output.description.includes('479')
+      - type: not-icontains
+        value: "1086"
+      - type: not-icontains
+        value: "vip"
+
+  - description: "Doesn't hallucinate metadata-only numbers absent from the visible content"
+    vars:
+      oldMarkdown: "# App Page\n\nRatings: 1.5K\nCategory: Productivity"
+      newMarkdown: "# App Page\n\nRatings: 1.5K\nCategory: Productivity"
+      watchTargets:
+        - "review count"
+      factsDiff:
+        # Simulates a fact-bag move that has no visible counterpart.
+        - key: "MobileApplication.aggregateRating.reviewCount"
+          before: "1463"
+          after: "1467"
+      url: "https://apps.apple.com/test"
+    assert:
+      # The visible content is identical — Claude should NOT report a change
+      # in the form "1463 → 1467" because that contradicts what the user sees.
+      # Either it reports the rounded value or says no visible change.
+      - type: not-icontains
+        value: "1463"
+      - type: not-icontains
+        value: "1467"
+
+  - description: "Quoting the precise number IS allowed when it matches what's visible"
+    vars:
+      oldMarkdown: "# App Page\n\nRating: 4.5\nReviews: 1,217"
+      newMarkdown: "# App Page\n\nRating: 4.4\nReviews: 1,243"
+      watchTargets:
+        - "app rating"
+      factsDiff:
+        - key: "MobileApplication.aggregateRating.ratingValue"
+          before: "4.5"
+          after: "4.4"
+        - key: "MobileApplication.aggregateRating.reviewCount"
+          before: "1217"
+          after: "1243"
+      url: "https://apps.apple.com/test"
+    assert:
+      - type: javascript
+        value: |
+          output.description.includes('4.5') && output.description.includes('4.4')
