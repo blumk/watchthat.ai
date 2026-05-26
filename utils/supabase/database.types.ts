@@ -95,6 +95,10 @@ export type Database = {
           // their own change log (swipe / × button). Filtered out in
           // getSites; shared snapshots remain visible to others.
           hidden_snapshot_ids: string[];
+          // When true, this user's watch is ignored by the refresh cron.
+          // History + tracked-fact badge stay intact; the page just stops
+          // being polled (provided no other watchers are still active).
+          paused: boolean;
         };
         Insert: {
           id?: string;
@@ -105,6 +109,7 @@ export type Database = {
           refresh_interval_seconds?: number;
           target_notes?: string | null;
           hidden_snapshot_ids?: string[];
+          paused?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["watches"]["Insert"]>;
         Relationships: [];

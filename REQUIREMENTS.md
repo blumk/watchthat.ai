@@ -61,6 +61,12 @@ this doc is the human-readable summary.
 - Edit-mode footer shows interval radio chips (1h / 6h / 24h) above the URL input; the currently-selected interval is highlighted [`WatchedSites.test.tsx`]
 - Clicking a chip patches the site optimistically with the new `refreshInterval` and a locally-computed `nextDueAt = lastChecked + interval` (mirrors the DB trigger), and persists via `updateSite` so the server's pg_cron picks up the new cadence. Clicking the already-selected chip is a no-op [`WatchedSites.test.tsx`]
 
+**Pause / resume refresh**
+- Edit-mode interval row has a Pause button to the right of the interval chips. Clicking it sets `paused: true` on the watch and nulls `nextDueAt`, persisting via `updateSite` so the DB trigger pulls the page out of the cron's pickup queue [`WatchedSites.test.tsx`]
+- A paused card's button label flips to Resume; clicking it sets `paused: false` and restores `nextDueAt = lastChecked + interval` [`WatchedSites.test.tsx`]
+- Collapsed card cadence line reads `Paused · was every Nh` when paused (instead of the live "next in" countdown) [`WatchedSites.test.tsx`]
+- Server-side: when *every* watcher of a page has `paused = true`, the snapshot/watch triggers set `pages.next_due_at = NULL`, the same NULL state the system uses for pages with no watchers. The cron `refresh_due_pages` function also filters `not paused` defensively so a still-set `next_due_at` (e.g. mid-trigger drift) can't pull a fully-paused page in. [migration: `20260525120000_pause_watches.sql`]
+
 **Remove**
 - "Remove website" link shown in the expanded footer [`WatchedSites.test.tsx`]
 - Clicking it calls `onRemove` with the site ID [`WatchedSites.test.tsx`]

@@ -499,6 +499,20 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
     onUpdate(site.id, patch);
   }
 
+  function handlePauseToggle(site: WatchedSite) {
+    const nextPaused = !site.paused;
+    // Mirror the DB trigger: pausing nulls out next_due_at (when no other
+    // watcher remains active), resuming sets it to last_fetched + interval.
+    const interval = site.refreshInterval ?? 86400;
+    const base = site.lastChecked ?? Date.now();
+    const patch: Partial<WatchedSite> = {
+      paused: nextPaused,
+      nextDueAt: nextPaused ? null : base + interval * 1000,
+    };
+    void updateSite(site.id, patch);
+    onUpdate(site.id, patch);
+  }
+
   function handleUrlChange(site: WatchedSite) {
     const raw = editUrl.trim();
     if (!raw) return;
@@ -642,8 +656,14 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                         aria-label="Refresh cadence"
                         className="text-[10px] font-mono text-[var(--t3)] block mt-1 leading-none"
                       >
-                        Every {formatInterval(site.refreshInterval)}
-                        {site.nextDueAt ? ` · next ${timeUntil(site.nextDueAt)}` : null}
+                        {site.paused ? (
+                          <>Paused · was every {formatInterval(site.refreshInterval)}</>
+                        ) : (
+                          <>
+                            Every {formatInterval(site.refreshInterval)}
+                            {site.nextDueAt ? ` · next ${timeUntil(site.nextDueAt)}` : null}
+                          </>
+                        )}
                       </span>
                     )}
                   </div>
@@ -811,11 +831,27 @@ export default function WatchedSites({ sites, onUpdate, onRemove }: Props) {
                               </button>
                             );
                           })}
-                          {site.nextDueAt && (
+                          <button
+                            aria-label={site.paused ? "Resume refresh" : "Pause refresh"}
+                            aria-pressed={site.paused}
+                            onClick={() => handlePauseToggle(site)}
+                            className={`px-2 py-0.5 rounded-md border text-[10px] font-mono leading-none cursor-pointer transition-colors ${
+                              site.paused
+                                ? "border-[var(--blue)] text-[var(--blue)] bg-[var(--blue-g)]"
+                                : "border-[var(--bdr)] text-[var(--t3)] hover:text-[var(--t1)] hover:border-[var(--t3)] bg-transparent"
+                            }`}
+                          >
+                            {site.paused ? "Resume" : "Pause"}
+                          </button>
+                          {site.paused ? (
+                            <span className="ml-auto text-[10px] font-mono text-[var(--t3)]">
+                              Paused
+                            </span>
+                          ) : site.nextDueAt ? (
                             <span className="ml-auto text-[10px] font-mono text-[var(--t3)]">
                               next {timeUntil(site.nextDueAt)}
                             </span>
-                          )}
+                          ) : null}
                         </div>
                         <div className="flex gap-2 mb-2">
                           <input

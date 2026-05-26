@@ -504,6 +504,72 @@ describe("WatchedSites", () => {
     expect(patch.nextDueAt).toBe(lastChecked + 3600 * 1000);
   });
 
+  it("Pause button persists paused=true and nulls out nextDueAt", () => {
+    const onUpdate = jest.fn();
+    const lastChecked = Date.now() - 60_000;
+    render(
+      <WatchedSites
+        sites={[
+          makeSite({
+            refreshInterval: 86400,
+            lastChecked,
+            nextDueAt: lastChecked + 86400_000,
+            paused: false,
+          }),
+        ]}
+        onUpdate={onUpdate}
+        onRemove={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /expand/i }));
+    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+    fireEvent.click(screen.getByRole("button", { name: /pause refresh/i }));
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    const [, patch] = onUpdate.mock.calls[0];
+    expect(patch.paused).toBe(true);
+    expect(patch.nextDueAt).toBeNull();
+  });
+
+  it("Resume button restores nextDueAt and clears paused", () => {
+    const onUpdate = jest.fn();
+    const lastChecked = Date.now() - 60_000;
+    render(
+      <WatchedSites
+        sites={[
+          makeSite({
+            refreshInterval: 21600,
+            lastChecked,
+            nextDueAt: null,
+            paused: true,
+          }),
+        ]}
+        onUpdate={onUpdate}
+        onRemove={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /expand/i }));
+    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+    fireEvent.click(screen.getByRole("button", { name: /resume refresh/i }));
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    const [, patch] = onUpdate.mock.calls[0];
+    expect(patch.paused).toBe(false);
+    // Resumed nextDueAt = lastChecked + 6h
+    expect(patch.nextDueAt).toBe(lastChecked + 21600 * 1000);
+  });
+
+  it("renders 'Paused' on the cadence line of a collapsed paused card", () => {
+    render(
+      <WatchedSites
+        sites={[makeSite({ refreshInterval: 86400, paused: true, nextDueAt: null })]}
+        onUpdate={jest.fn()}
+        onRemove={jest.fn()}
+      />,
+    );
+    const badge = screen.getByLabelText("Refresh cadence");
+    expect(badge).toHaveTextContent(/Paused/);
+    expect(badge).not.toHaveTextContent(/next in/);
+  });
+
   it("no-ops when clicking the already-selected interval chip", () => {
     const onUpdate = jest.fn();
     render(

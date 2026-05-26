@@ -62,6 +62,11 @@ export interface WatchedSite {
   // gets per-page user guidance that survives across runs.
   targetNotes: string | null;
   refreshInterval: number | null;
+  // When true the refresh cron skips this watch's page (provided every
+  // other watcher of the same page is also paused; if any other watcher
+  // is still active the page keeps polling at their cadence). Toggled by
+  // the user from the card's edit footer.
+  paused: boolean;
   // When the background cron is next due to scrape this page (epoch ms).
   // Maintained server-side by triggers; surfaced here so cards can render
   // "Next check in X". Null when the page has no active watchers (cron
@@ -96,6 +101,7 @@ function emptySite(overrides: Partial<WatchedSite>): WatchedSite {
     refreshInterval: null,
     nextDueAt: null,
     trackedFact: null,
+    paused: false,
     ...overrides,
   };
 }
@@ -138,6 +144,7 @@ type WatchRow = {
   watch_target: string | null;
   target_notes: string | null;
   refresh_interval_seconds: number;
+  paused: boolean;
   pages: {
     id: string;
     url: string;
@@ -162,6 +169,7 @@ function rowToSite(row: WatchRow): WatchedSite | null {
     nextDueAt: row.pages.next_due_at
       ? new Date(row.pages.next_due_at).getTime()
       : null,
+    paused: row.paused ?? false,
   });
 }
 
@@ -210,7 +218,7 @@ export async function getSites(): Promise<WatchedSite[]> {
   const { data, error } = await client
     .from("watches")
     .select(
-      "id, watch_target, target_notes, refresh_interval_seconds, pages(id, url, label, latest_snapshot_id, last_fetched_at, next_due_at, hidden_snapshot_ids)",
+      "id, watch_target, target_notes, refresh_interval_seconds, paused, pages(id, url, label, latest_snapshot_id, last_fetched_at, next_due_at, hidden_snapshot_ids)",
     )
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });
@@ -391,6 +399,9 @@ export async function updateSite(
     // The DB has a 1h floor; round trip would otherwise reject. WatchSetup
     // never offers anything below 3600 so this is just a defence-in-depth.
     dbPatch.refresh_interval_seconds = patch.refreshInterval;
+  }
+  if ("paused" in patch && typeof patch.paused === "boolean") {
+    dbPatch.paused = patch.paused;
   }
   if (Object.keys(dbPatch).length === 0) return;
 
